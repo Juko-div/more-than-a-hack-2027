@@ -1,0 +1,61 @@
+"""Feature extraction and kinematic modeling package."""
+
+from .atd_parser import (
+    ATDFrameData,
+    ATDParseError,
+    ATDParser,
+    AWAY_SLOTS,
+    FPS,
+    HOME_SLOTS,
+    N_AWAY_SLOTS,
+    N_HOME_SLOTS,
+    PITCH_LENGTH_METERS,
+    PITCH_WIDTH_METERS,
+    TOTAL_PLAYER_SLOTS,
+    TOTAL_VIDEO_FRAMES,
+    TeamMetadata,
+)
+from .ball_trajectory import (
+    compute_ball_rest_indicator as compute_ball_rest_trajectory,
+    compute_ball_velocity,
+    compute_pitch_boundary_indicator,
+    interpolate_ball_trajectory,
+    process_ball_trajectory,
+)
+from .kinematic_features import (
+    compute_ball_rest_indicator,
+    compute_pitch_boundary_buffer,
+    compute_relative_velocity,
+    compute_team_spatial_dispersion,
+    detect_kinematic_control,
+    extract_kinematic_features,
+    track_pass_continuation,
+)
+
+__all__ = [
+    "ATDParser",
+    "ATDFrameData",
+    "TeamMetadata",
+    "ATDParseError",
+    "PITCH_LENGTH_METERS",
+    "PITCH_WIDTH_METERS",
+    "FPS",
+    "HOME_SLOTS",
+    "AWAY_SLOTS",
+    "N_HOME_SLOTS",
+    "N_AWAY_SLOTS",
+    "TOTAL_PLAYER_SLOTS",
+    "TOTAL_VIDEO_FRAMES",
+    "interpolate_ball_trajectory",
+    "compute_ball_velocity",
+    "compute_ball_rest_trajectory",
+    "compute_pitch_boundary_indicator",
+    "process_ball_trajectory",
+    "compute_relative_velocity",
+    "detect_kinematic_control",
+    "track_pass_continuation",
+    "compute_team_spatial_dispersion",
+    "compute_ball_rest_indicator",
+    "compute_pitch_boundary_buffer",
+    "extract_kinematic_features",
+]
