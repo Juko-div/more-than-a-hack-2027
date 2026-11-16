@@ -95,9 +95,9 @@ def build_mutation_suite() -> Dict[str, Tuple[pd.DataFrame, str, bool]]:
     df_float["frame"] = df_float["frame"].astype(float)
     suite["M_FRAME_FLOAT"] = (df_float, "not integer", False)
 
-    # M_FRAME_STRING: string dtype frames
+    # M_FRAME_STRING: string/object dtype frames
     df_str_frame = clean.copy()
-    df_str_frame["frame"] = df_str_frame["frame"].astype(str)
+    df_str_frame["frame"] = df_str_frame["frame"].astype(object)
     suite["M_FRAME_STRING"] = (df_str_frame, "not integer", False)
 
     # M_FRAME_GAP_START: starts at 1 instead of 0 (1..199319)

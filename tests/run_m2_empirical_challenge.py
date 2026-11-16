@@ -268,8 +268,8 @@ def run_challenge_suite() -> Dict[str, Any]:
     features = extract_kinematic_features(
         px=data.all_players_pos_m[:, :, 0],
         py=data.all_players_pos_m[:, :, 1],
-        bx=traj_dict["bx"],
-        by=traj_dict["by"],
+        bx=bx_m,
+        by=by_m,
         ball_speed=traj_dict["speed"],
         is_interpolated=traj_dict["is_interpolated"],
         pitch_length=PITCH_LENGTH_METERS,
