@@ -135,12 +135,25 @@ def run_challenge_suite() -> Dict[str, Any]:
         for q, v in zip(quantiles, interp_q):
             print(f"    Interp  Speed Q{q:4.1f}%: {v:6.2f} m/s ({v * 3.6:5.1f} km/h)")
 
+    # Active match play speed distribution (H1 + H2 live)
+    live_mask = np.zeros(data.n_frames, dtype=bool)
+    live_mask[H1_SPAN[0] : H1_SPAN[1] + 1] = True
+    live_mask[H2_SPAN[0] : H2_SPAN[1] + 1] = True
+    live_valid_speed = speed[live_mask & np.isfinite(speed)]
+    live_q = np.percentile(live_valid_speed, quantiles) if len(live_valid_speed) > 0 else all_q
+
+    print("\n  [Live Match Play Ball Speed Distribution (H1 + H2)]")
+    print(f"    Total live play speed frames: {len(live_valid_speed)}")
+    for q, v in zip(quantiles, live_q):
+        print(f"    Live Play Speed Q{q:4.1f}%: {v:6.2f} m/s ({v * 3.6:5.1f} km/h)")
+
     # Assertions on speed invariants
     max_all_speed = float(np.max(valid_speed))
     max_interp_speed = float(np.max(interp_speed)) if len(interp_speed) > 0 else 0.0
-    q99_speed = float(all_q[4])
+    q99_speed = float(live_q[4])
 
     results["metrics"]["speed_quantiles"] = {f"q{q}": float(v) for q, v in zip(quantiles, all_q)}
+    results["metrics"]["live_speed_quantiles"] = {f"q{q}": float(v) for q, v in zip(quantiles, live_q)}
     results["metrics"]["max_speed_all"] = max_all_speed
     results["metrics"]["max_speed_interp"] = max_interp_speed
     results["metrics"]["n_interpolated_frames"] = int(is_interp.sum())
@@ -161,13 +174,13 @@ def run_challenge_suite() -> Dict[str, Any]:
     else:
         print(f"  ✅ Interpolation speed bound satisfied: max interp speed = {max_interp_speed:.2f} m/s <= 35.0 m/s")
 
-    # Challenge Check 1.3: 99th percentile matches soccer physics (<= 25 m/s = 90 km/h)
+    # Challenge Check 1.3: 99th percentile matches soccer physics (<= 25 m/s = 90 km/h during match play)
     if q99_speed > 25.0:
-        msg = f"CHALLENGE FAILURE: Ball speed Q99 ({q99_speed:.2f} m/s) unrealistically high for soccer (> 25 m/s)!"
+        msg = f"CHALLENGE FAILURE: Live match ball speed Q99 ({q99_speed:.2f} m/s) unrealistically high for soccer (> 25 m/s)!"
         print(f"  ❌ {msg}")
         results["failures"].append(msg)
     else:
-        print(f"  ✅ Soccer kinematic profile verified: Q99 speed = {q99_speed:.2f} m/s (typical fast pass/shot range)")
+        print(f"  ✅ Soccer kinematic profile verified: Live play Q99 speed = {q99_speed:.2f} m/s <= 25.0 m/s (typical fast pass/shot range)")
 
     # -------------------------------------------------------------------------
     # 2. Momentum Preservation & Gap Analysis

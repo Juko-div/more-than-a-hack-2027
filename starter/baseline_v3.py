@@ -31,7 +31,7 @@ from baseline import team_of_each_track, team_names, write_submission  # noqa: E
 from load_smart_tagging import load as load_events  # noqa: E402
 
 RESULTS_DIR = os.path.join(ROOT, "evaluation", "results")
-CACHE_FILE = os.path.join(ROOT, "data", ".baseline_v2_features.npz")
+CACHE_FILE = os.path.join(ROOT, "data", ".baseline_v3_features.npz")
 
 HOME, AWAY, DEAD, NOBODY = 0, 1, 2, 3
 LETTERS = np.array(["H", "A", "D", "X"])
@@ -91,8 +91,8 @@ def read_atd(raw_path, n_frames, n_slots):
             parts = line.split(":")
             if len(parts) != 3:
                 continue
-            t = int(parts[0])
-            if t < 0 or t >= n_frames:
+            t = int(parts[0]) - 1  # 1-indexed to 0-indexed
+            if not 0 <= t < n_frames:
                 continue
             p_entries = parts[1].split(";")
             if p_entries and p_entries[0]:
@@ -175,7 +175,7 @@ def build_features(game, p):
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
-        mean_p_speed = np.nanmean(ps, axis=1)
+        median_speed = np.nanmedian(ps, axis=1)
 
     ball_speed = np.full(n_frames, np.nan, dtype=np.float32)
     s = seen[:-1] & seen[1:]
@@ -189,7 +189,7 @@ def build_features(game, p):
         d_away=d_away.astype(np.float32),
         interpolated=interpolated,
         out=out,
-        player_speed=smooth_filled(mean_p_speed, int(p["speed_win"])),
+        player_speed=smooth_filled(median_speed, int(p["speed_win"])),
         ball_speed=smooth_filled(ball_speed, int(p["ball_win"])),
     )
 
