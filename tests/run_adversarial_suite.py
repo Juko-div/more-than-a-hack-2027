@@ -411,6 +411,7 @@ def run_adversarial_suite():
     print("TESTING REAL ARTIFACTS ON DISK")
     print("-" * 80)
     real_files = [
+        ("baseline_v4.csv", REPO_ROOT / "evaluation" / "results" / "baseline_v4.csv", True),
         ("baseline_v2.csv", REPO_ROOT / "evaluation" / "results" / "baseline_v2.csv", True),
         ("baseline_smooth50.csv", REPO_ROOT / "evaluation" / "results" / "baseline_smooth50.csv", False), # non-strict invariants
         ("baseline_raw.csv", REPO_ROOT / "evaluation" / "results" / "baseline_raw.csv", False),
