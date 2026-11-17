@@ -304,6 +304,38 @@ def learn_phase_semantics(events, evidence, near, n_frames):
     return semantics
 
 
+# Smart-tag codes that describe live play. A GOALS tag covers the whole scoring
+# sequence (attack -> goal -> celebration -> replays); only the part after the
+# last live phase is dead ball.
+LIVE_PHASE_CODES = frozenset({
+    "ball in final third", "ball in the box", "progression", "build up",
+    "attacking transition", "long ball", "creating chances",
+    "defending in middle third", "defending in defensive third",
+    "defending in attacking third", "defensive transition",
+})
+
+
+def _live_phase_end(events, start, end):
+    """Last frame of live play inside [start, end), or `start` if there is none.
+
+    SET PIECES count as live (the restart is play) except the after-goal kickoff,
+    which is the boundary that closes the GOALS span. Zone-only tags such as
+    PLAYERS IN THE BOX are deliberately excluded: they can outlast the goal.
+    """
+    last = start
+    for e in events:
+        code = (e["code"] or "").strip().lower()
+        if code == "set pieces":
+            if "kick off" in (e.get("tags", {}).get("Type") or "").strip().lower():
+                continue
+            live = True
+        else:
+            live = code in LIVE_PHASE_CODES
+        if live and e["start_frame"] < end and e["end_frame"] > start:
+            last = max(last, e["end_frame"])
+    return min(last, end)
+
+
 def tag_arrays_v3(events, semantics, n_frames, p):
     hard = np.zeros(n_frames, dtype=bool)
     soft = np.zeros(n_frames, dtype=bool)
@@ -331,7 +363,11 @@ def tag_arrays_v3(events, semantics, n_frames, p):
             hard[max(0, s - int(pre_s * FPS)):min(n_frames, s + int(1.0 * FPS))] = True
             soft[max(0, s - int(p["tag_soft_pre"] * FPS)):max(0, s)] = True
         elif code == "goals":
-            goal_dead[max(0, s):min(n_frames, end)] = True
+            # Only the celebration/replay tail is dead: the span starts at the
+            # attacking phase that produced the goal, not at the goal itself.
+            # Forcing D over that attack would delete a real possession.
+            live_end = _live_phase_end(events, s, end)
+            goal_dead[max(0, live_end):min(n_frames, end)] = True
         elif code in ("progression", "build up", "attacking transition", "long ball"):
             active_phase[max(0, s):min(n_frames, end)] = True
 
@@ -686,6 +722,39 @@ def refine_football_rules_v3(path, p, features=None, offset=0):
     return path
 
 
+def relabel_goal_attacks(labels, events):
+    """Give the scoring team the attacking phase inside a GOALS tag.
+
+    A GOALS span starts at the scoring team's final-third entry and ends at the
+    after-goal kickoff, so the part before the last live phase is the move that
+    produced the goal: the scoring team owns the ball there and the conceding
+    team only appears as `DEFENDING IN ...`. When ball visibility is poor the
+    decoder can put a wrong-side run in that attack (a spurious spell). Correct
+    the team on alive runs lying entirely inside the attacking phase; alive/dead
+    is untouched, so no possession is created or removed.
+    """
+    out = labels.copy()
+    if not events:
+        return out
+    n = len(out)
+    edges = np.flatnonzero(out[1:] != out[:-1]) + 1
+    starts = np.concatenate(([0], edges))
+    ends = np.concatenate((edges, [n]))
+    for e in events:
+        if (e["code"] or "").strip().lower() != "goals":
+            continue
+        side = _side(e["tags"].get("Team"))
+        if side is None:
+            continue
+        span_start = max(0, e["start_frame"])
+        live_end = _live_phase_end(events, span_start, min(n, e["end_frame"]))
+        team = LETTERS[side]
+        for a, b in zip(starts, ends):
+            if a >= span_start and b <= live_end and out[a] in ("H", "A"):
+                out[a:b] = team
+    return out
+
+
 # ---------------------------------------------------------------------------------------------
 # 6. High-Level Decode Function
 # ---------------------------------------------------------------------------------------------
@@ -788,7 +857,7 @@ def decode_v4(features: Dict[str, np.ndarray], game=GAME, p=DEFAULTS_V4, context
         path = refine_football_rules_v3(path, p, features=features, offset=first)
         labels[first:last + 1] = LETTERS[path]
 
-    return labels
+    return relabel_goal_attacks(labels, context["events"])
 
 
 if __name__ == "__main__":
