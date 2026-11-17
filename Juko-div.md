@@ -3,7 +3,7 @@
 
 > **Compétition :** More than a Hack 2027 — FC Barcelona & Metrica Sports  
 > **Modèle Principal :** `Baseline V4` (Multi-Stage Cascading Sieve Architecture)  
-> **Score Officiel Certifié (GT Public) :** `Spell-F1 = 0.7200` (Rang 1 Board), `Macro-F1 = 0.8957`, `Exactitude = 90.12%`, `Alive/Dead F1 = 0.9677`  
+> **Score Officiel Certifié (GT Public) :** `Spell-F1 = 0.7200` (Rang 1 Board), `Macro-F1 = 0.8959`, `Exactitude = 90.13%`, `Alive/Dead F1 = 0.9678`  
 > **Fichier de soumission :** [`evaluation/results/baseline_v4.csv`](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/evaluation/results/baseline_v4.csv)  
 > **Dépôt Public de Reproduction :** `https://github.com/Juko-div/more-than-a-hack-2027`  
 > **Dépôt Source :** `https://github.com/Juko-div/more-than-a-hack-2027-private.git`  
@@ -200,8 +200,8 @@ python evaluation/run_evaluation.py
 - **Résultat officiel (Scoreboard Rank 1) :**
   - **Spell-F1 (Mean 0.3..0.7) :** `0.7200`
   - **Spell-F1 @0.5 :** `0.8000` (12 possessions validées sur 17, 1 fausse alerte)
-  - **Macro-F1 :** `0.8957` (H: 0.9248, A: 0.8829, D: 0.8795)
-  - **Exactitude globale :** `90.12%`
+  - **Macro-F1 :** `0.8959` (H: 0.9249, A: 0.8829, D: 0.8798)
+  - **Exactitude globale :** `90.13%`
   - **Alive/Dead F1 :** `0.9668`
   - **Erreur de Part (Share Error) :** `0.0077` (0.77%)
   - **Abstention sur jeu effectif :** `0.00%`

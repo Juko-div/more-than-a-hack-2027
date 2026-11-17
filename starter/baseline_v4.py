@@ -50,22 +50,24 @@ HOME, AWAY, DEAD, NOBODY = 0, 1, 2, 3
 LETTERS = np.array(["H", "A", "D", "X"])
 FPS = 25.0
 
-DEFAULTS_V4 = dict(
+DEFAULTS_V4 = {
     **DEFAULTS_V3,
     # Piste 1: Defensive Shielding & Territorial Spatial Control
-    shield_third_bound=0.25,
-    shield_max_reach=5.5,
-    shield_max_duel=3.5,
-    shield_bridge_gap=15,
-    shield_emission_bonus=0.8,
-    shield_switch_ratio=0.35,
+    "shield_third_bound": 0.25,
+    "shield_max_reach": 5.5,
+    "shield_max_duel": 3.5,
+    "shield_bridge_gap": 15,
+    "shield_emission_bonus": 0.8,
+    "shield_switch_ratio": 0.35,
     # Piste 2: Ballistic Air-Ball Altitude Modeling
-    air_z_thresh=2.0,
-    air_speed_thresh=13.0,
-    air_min_flight_frames=35,
-    air_min_travel_dist=22.0,
-    air_min_peak_height=2.5,
-)
+    "air_z_thresh": 2.0,
+    "air_speed_thresh": 13.0,
+    "air_min_flight_frames": 35,
+    "air_min_travel_dist": 22.0,
+    "air_min_peak_height": 2.5,
+    # Set-piece restart calibration: kick impulse at 2.0 m/s (filters placement nudges)
+    "restart_v_thresh": 2.0,
+}
 
 REQUIRED_V4_KEYS = {
     "d_home", "d_away", "interpolated", "out", "player_speed", "ball_speed",
