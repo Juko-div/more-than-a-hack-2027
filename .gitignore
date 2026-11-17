@@ -55,6 +55,7 @@ data/*
 organizers/
 
 # -- editors and build artifacts ---------------------------------------------------------------
+experiments/
 .idea/
 .vscode/
 __pycache__/
