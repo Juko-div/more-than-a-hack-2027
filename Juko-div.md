@@ -1,10 +1,11 @@
 # SUBMISSION REPORT — MORE THAN A HACK 2027
-## Système d'Inférence de Possession de Football par Balayage Étagé Multimodal (Baseline V4)
+## Système d'Inférence de Possession de Football par Balayage Étagé Multimodal (Juko-div / Baseline V4)
 
 > **Compétition :** More than a Hack 2027 — FC Barcelona & Metrica Sports  
-> **Modèle Principal :** `Baseline V4` (Multi-Stage Cascading Sieve Architecture)  
+> **Équipe :** `Juko-div`  
+> **Modèle Principal :** `Juko-div` (`starter/baseline_v4.py`)  
 > **Score Officiel Certifié (GT Public) :** `Spell-F1 = 0.7200` (Rang 1 Board), `Macro-F1 = 0.8959`, `Exactitude = 90.13%`, `Alive/Dead F1 = 0.9678`  
-> **Fichier de soumission :** [`evaluation/results/baseline_v4.csv`](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/evaluation/results/baseline_v4.csv)  
+> **Fichier de soumission :** [`evaluation/results/Juko-div.csv`](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/evaluation/results/Juko-div.csv)  
 > **Dépôt Public de Reproduction :** `https://github.com/Juko-div/more-than-a-hack-2027`  
 > **Dépôt Source :** `https://github.com/Juko-div/more-than-a-hack-2027-private.git`  
 > **Conformité Réglementaire :** 100% Conforme aux exigences strictes de [RULES.md](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/RULES.md) et [SUBMISSION.md](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/SUBMISSION.md) (zéro fuite, zéro règle calée sur des frames spécifiques, génération 100% algorithmique et déterministe).
@@ -50,7 +51,7 @@ Notre système repose sur une **architecture de balayage étagé en cascade (*Ca
    - Réintégration des replacements techniques entre arrêts de jeu ($D \to H/A \to D \le 3.6\text{ s}$).
    - Comblement des micro-coupures de tracking ($H \to D \to H \le 0.6\text{ s}$).
    - Conservation des possessions courtes réelles ($\ge 15$ frames / 0.6s) ayant un contact physique vérifié ($\le 0.85\text{ m}$).
-   - Seuil de réactivation du ballon vivant après arrêt de jeu fixé à $v_{\text{ball}} > 1.8\text{ m/s}$.
+   - Seuil de réactivation du ballon vivant après arrêt de jeu fixé à $v_{\text{ball}} > 2.0\text{ m/s}$.
 
 ### Pourquoi cette architecture plutôt qu'un modèle boîte noire ?
 - **Interprétabilité et traçabilité complètes :** Un réseau de neurones de type Transformer ou GRU boîte noire entraîne des hallucinations sur les transitions fugaces et les ballons aériens. Notre pipeline explicite chaque état via des lois physiques testables.
@@ -136,7 +137,7 @@ Les règles de démarcation physique et footballistique sont implémentées comm
 
 ### 4. Temps Morts & Reprises de Jeu
 - **Arrêt de jeu :** Déclenché automatiquement dès la sortie de balle ($out$), sur faute ou phase de coup de pied arrêté identifiée par Smart Tagging avec log-vraisemblance $\text{LLR}_{\text{dead}} > 0$.
-- **Reprise de jeu :** Le retour à l'état vivant (`H` ou `A`) exige à la fois une accélération de la balle ($v_{\text{ball}} > 1.8\text{ m/s}$) et la présence d'un joueur à moins de $2.2\text{ m}$, garantissant la synchronisation exacte de l'instant de frappe.
+- **Reprise de jeu :** Le retour à l'état vivant (`H` ou `A`) exige à la fois une accélération de la balle ($v_{\text{ball}} > 2.0\text{ m/s}$) et la présence d'un joueur à moins de $2.2\text{ m}$, garantissant la synchronisation exacte de l'instant de frappe.
 
 ---
 
@@ -159,7 +160,7 @@ Bien que Baseline V4 se positionne au 1er rang officiel (`Spell-F1 = 0.7200`), p
 
 ## 6. Instructions de Reproduction (Reproduction)
 
-La reproduction complète de notre fichier de soumission `baseline_v4.csv` s'effectue de manière 100% déterministe via les étapes suivantes :
+La reproduction complète de notre fichier de soumission `Juko-div.csv` s'effectue de manière 100% déterministe via les étapes suivantes :
 
 ### Étape 1 : Préparation de l'environnement
 Cloner le dépôt public et installer les dépendances légères :
@@ -176,16 +177,16 @@ Exécuter le pipeline officiel Baseline V4 :
 python starter/baseline_v4.py
 ```
 - **Durée d'exécution :** $\sim 12\text{ secondes}$.
-- **Sortie générée :** `evaluation/results/baseline_v4.csv` (199 319 lignes, 1.88 Mo).
+- **Sortie générée :** `evaluation/results/Juko-div.csv` (199 319 lignes, 1.88 Mo).
 
 ### Étape 3 : Validation officielle de la soumission
 Vérifier la validité structurelle du fichier selon le protocole officiel du hackathon :
 ```bash
-python evaluation/validate_submission.py evaluation/results/baseline_v4.csv
+python evaluation/validate_submission.py evaluation/results/Juko-div.csv
 ```
 - **Résultat attendu :**
   ```text
-  OK    baseline_v4.csv
+  OK    Juko-div.csv
         199319 rows, frame 0..199318
         label counts: H 47729 (23.9%), A 29036 (14.6%), D 82092 (41.2%), X 40462 (20.3%)
         reports 257 possessions of mean 11.9 s
@@ -202,18 +203,14 @@ python evaluation/run_evaluation.py
   - **Spell-F1 @0.5 :** `0.8000` (12 possessions validées sur 17, 1 fausse alerte)
   - **Macro-F1 :** `0.8959` (H: 0.9249, A: 0.8829, D: 0.8798)
   - **Exactitude globale :** `90.13%`
-  - **Alive/Dead F1 :** `0.9668`
-  - **Erreur de Part (Share Error) :** `0.0077` (0.77%)
+  - **Alive/Dead F1 :** `0.9678`
+  - **Erreur de Part (Share Error) :** `0.0075` (0.75%)
   - **Abstention sur jeu effectif :** `0.00%`
 
-### Étape 5 : Exécution des bancs de tests unitaires et adverses
-Lancer les suites de vérification automatisées :
-```bash
-python -m pytest tests/e2e
-python tests/run_adversarial_suite.py
-python tests/run_m2_empirical_challenge.py
-```
-- **Statut :** 134/134 tests e2e passés, 52/52 scénarios adverses validés, 100% des invariants physiques vérifiés.
+### Étape 5 : Vérification de conformité et intégrité
+Le code est 100% autonome et ne contient aucune dépendance superflue.
+La validation du format s'effectue via `python evaluation/validate_submission.py evaluation/results/Juko-div.csv`.
+L'évaluation officielle et la génération du tableau de bord se font via `python evaluation/run_evaluation.py`.
 
 ---
 
@@ -222,6 +219,6 @@ python tests/run_m2_empirical_challenge.py
 Le dossier de soumission prêt pour l'envoi via le formulaire Google Form officiel comprend :
 
 1. **Nom d'équipe :** `Juko-div`
-2. **Fichier de possession :** `evaluation/results/baseline_v4.csv` (également duplicable sous `Juko-div.csv`)
+2. **Fichier de possession :** `evaluation/results/Juko-div.csv` (également duplicable sous `Juko-div.csv`)
 3. **URL du dépôt public :** `https://github.com/Juko-div/more-than-a-hack-2027`
-4. **Document technique :** `SUBMISSION_REPORT.md` (le présent document)
+4. **Document technique :** `Juko-div.md` (le présent document)
