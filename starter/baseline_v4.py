@@ -226,6 +226,7 @@ def viterbi_v4(
     shield_h: Optional[np.ndarray] = None,
     shield_a: Optional[np.ndarray] = None,
     air_ball: Optional[np.ndarray] = None,
+    out: Optional[np.ndarray] = None,
     max_acquire_dist: float = 2.2,
     contact_thresh: float = 0.85,
     contact_ratio: float = 0.5,
@@ -273,6 +274,7 @@ def viterbi_v4(
     for t in range(1, T):
         p0, p1, p2 = dp[t - 1, 0], dp[t - 1, 1], dp[t - 1, 2]
         is_air = air_ball[t] if air_ball is not None else False
+        is_out = out[t] if out is not None else False
 
         c_hd = p_restart_cost if not no_h[t] else -10000.0
         c_ad = p_restart_cost if not no_a[t] else -10000.0
@@ -284,6 +286,12 @@ def viterbi_v4(
         else:
             c_ha = c_ha_base[t] if not no_h[t] else -10000.0
             c_ah = c_ah_base[t] if not no_a[t] else -10000.0
+
+        # Ballistic air-ball inside pitch: ball is in flight, cannot transition to dead
+        if is_air and not is_out:
+            c_dead = -10000.0
+        else:
+            c_dead = p_dead_cost
 
         # To H (0)
         s00, s10, s20 = p0, p1 + c_ha, p2 + c_hd
@@ -304,7 +312,7 @@ def viterbi_v4(
             best1, idx1 = s21, 2
 
         # To D (2)
-        s02, s12, s22 = p0 + p_dead_cost, p1 + p_dead_cost, p2
+        s02, s12, s22 = p0 + c_dead, p1 + c_dead, p2
         if s02 >= s12 and s02 >= s22:
             best2, idx2 = s02, 0
         elif s12 >= s22:
@@ -378,7 +386,7 @@ def decode_v4(features: Dict[str, np.ndarray], game=GAME, p=DEFAULTS_V4, context
     tb_bonus = float(p.get("terminal_phase_dead_bonus", 1.0))
     if tb_bonus > 0:
         for tf in terminal_phase_ends:
-            E[max(0, tf - 5):min(n_frames, tf + 10), DEAD] += tb_bonus
+            E[tf:min(n_frames, tf + 10), DEAD] += tb_bonus
 
     E[forced] = [-1e3, -1e3, 0.0]
 
@@ -395,6 +403,7 @@ def decode_v4(features: Dict[str, np.ndarray], game=GAME, p=DEFAULTS_V4, context
         sh_sub = features["shield_home"][first:last + 1] if "shield_home" in features else None
         sa_sub = features["shield_away"][first:last + 1] if "shield_away" in features else None
         air_sub = features["air_ball_mask"][first:last + 1] if "air_ball_mask" in features else None
+        out_sub = features["out"][first:last + 1] if "out" in features else None
 
         path = viterbi_v4(
             E[first:last + 1],
@@ -404,6 +413,7 @@ def decode_v4(features: Dict[str, np.ndarray], game=GAME, p=DEFAULTS_V4, context
             shield_h=sh_sub,
             shield_a=sa_sub,
             air_ball=air_sub,
+            out=out_sub,
             max_acquire_dist=acquire_dist,
             contact_thresh=float(p.get("contact_thresh", 0.85)),
             contact_ratio=float(p.get("contact_switch_ratio", 0.5)),

@@ -161,3 +161,30 @@ class TestBallisticAirBall:
         # Boundaries outside flight should be False
         assert not np.any(mask[:10])
         assert not np.any(mask[50:])
+
+    def test_viterbi_air_ball_prevents_premature_dead_in_bounds(self):
+        from starter.baseline_v4 import viterbi_v4
+        T = 10
+        E = np.zeros((T, 3))
+        # Initial live possession Home
+        E[0] = [5.0, -5.0, -5.0]
+        # Rest frames neutral emission
+        E[1:] = [0.0, 0.0, 1.0]  # Dead has slight emission advantage
+
+        trans = np.array([
+            [0.0, -2.0, -0.5],
+            [-2.0, 0.0, -0.5],
+            [-2.0, -2.0, 0.0]
+        ])
+
+        air_ball = np.ones(T, dtype=bool)
+        out = np.zeros(T, dtype=bool)
+
+        # When airborne inside pitch: path must not transition to Dead (state 2)
+        path = viterbi_v4(E, trans, air_ball=air_ball, out=out)
+        assert np.all(path == 0)
+
+        # When out is True: transition to Dead is allowed
+        out_true = np.ones(T, dtype=bool)
+        path_out = viterbi_v4(E, trans, air_ball=air_ball, out=out_true)
+        assert path_out[-1] == 2
