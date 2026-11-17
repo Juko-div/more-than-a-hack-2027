@@ -39,7 +39,8 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, "evaluation"))
 
-from games import GAME, GAMES, DATA_DIR, half_video_blocks, require, source_frames
+from games import (GAME, GAMES, DATA_DIR, anchor_video_frame, half_video_blocks,
+                   require, source_frames)
 from starter.baseline import team_of_each_track, team_names, write_submission
 from starter.defensive_shielding import detect_defensive_shielding
 from starter.ballistic_airball import detect_ballistic_air_balls
@@ -52,7 +53,11 @@ V4_CACHE_FILE = os.path.join(ROOT, "data", ".baseline_v4_features.npz")
 HOME, AWAY, DEAD, NOBODY = 0, 1, 2, 3
 LETTERS = np.array(["H", "A", "D", "X"])
 FPS = 25.0
-KICKOFF_2ND_HALF = 113742
+# First frame of the second half's live play, taken from the kickoff anchor the
+# organisers publish in games.py rather than from a literal.  The +1 keeps the
+# struck frame itself inside the forced dead run, which is what the previous
+# hard-coded 113742 did; deriving it keeps the rule data-driven (RULES.md #1).
+KICKOFF_2ND_HALF = anchor_video_frame(GAMES[GAME]["kickoff_2nd"]) + 1
 SIDE_OF_CLUB = (("barcel", HOME), ("atl", AWAY), ("ath", AWAY))
 
 DEFAULTS_V4 = {
@@ -107,6 +112,23 @@ REQUIRED_V4_KEYS = {
     "d_home", "d_away", "interpolated", "out", "player_speed", "ball_speed",
     "shield_home", "shield_away", "air_ball_mask"
 }
+
+# Feature arrays depend on these parameters only.  The cache is keyed on them so
+# that editing DEFAULTS_V4 (or passing a non-default p to build_features_v4)
+# cannot silently reuse arrays built with different physics.
+FEATURE_PARAM_KEYS = (
+    "max_gap", "speed_win", "ball_win",
+    "shield_third_bound", "shield_max_reach", "shield_max_duel", "shield_bridge_gap",
+    "air_z_thresh", "air_speed_thresh", "air_min_flight_frames",
+    "air_min_travel_dist", "air_min_peak_height",
+)
+
+
+def feature_fingerprint(p):
+    """Short deterministic hash of every parameter that changes the features."""
+    import hashlib
+    blob = ";".join("{}={!r}".format(k, p.get(k)) for k in FEATURE_PARAM_KEYS)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:16]
 
 
 # ---------------------------------------------------------------------------------------------
@@ -435,17 +457,21 @@ def build_features_v4(game=GAME, p=DEFAULTS_V4, raw=None, ball_mask=None):
 
 def load_features_v4(game=GAME, p=DEFAULTS_V4, use_cache=True):
     cache_path = V4_CACHE_FILE
+    wanted = feature_fingerprint(p)
     if use_cache and os.path.exists(cache_path):
         try:
             cached = np.load(cache_path)
-            if all(k in cached.files for k in REQUIRED_V4_KEYS):
-                return {k: cached[k] for k in cached.files}
+            tags_ok = all(k in cached.files for k in REQUIRED_V4_KEYS)
+            same_physics = ("_fingerprint" in cached.files
+                            and str(cached["_fingerprint"].item()) == wanted)
+            if tags_ok and same_physics:
+                return {k: cached[k] for k in cached.files if k != "_fingerprint"}
         except Exception:
             pass
     feat = build_features_v4(game, p)
     if use_cache:
         try:
-            np.savez_compressed(cache_path, **feat)
+            np.savez_compressed(cache_path, _fingerprint=np.array(wanted), **feat)
         except Exception:
             pass
     return feat
