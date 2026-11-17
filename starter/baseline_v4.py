@@ -94,6 +94,8 @@ DEFAULTS_V4 = {
     "min_retained_spell": 15,
     "min_spell": 35,
     "rule1_max": 60,
+    "rule1_out_win": 30,
+    "rule1_out_frac": 0.2,
     "rule2_max": 90,
     "rule3_max": 15,
     # Piste 1: Defensive Shielding & Territorial Spatial Control
@@ -672,9 +674,12 @@ def refine_football_rules_v3(path, p, features=None, offset=0):
     ends = np.concatenate((edges, [len(path)]))
 
     rule1_max = int(p.get("rule1_max", 60))
+    rule1_out_win = int(p.get("rule1_out_win", 30))
+    rule1_out_frac = float(p.get("rule1_out_frac", 0.2))
     rule2_max = int(p.get("rule2_max", 90))
     rule3_max = int(p.get("rule3_max", 15))
     restart_v = float(p.get("restart_v_thresh", 2.0))
+    out_arr = features.get("out") if features is not None else None
 
     spans = list(zip(starts, ends))
     for i in range(1, len(spans) - 1):
@@ -684,10 +689,19 @@ def refine_football_rules_v3(path, p, features=None, offset=0):
         c_prev, c_cur, c_next = path[s_prev], path[s_cur], path[s_next]
         dur = e_cur - s_cur
 
-        # 1. Reflex defensive clearance directly out: A -> H (< rule1_max) -> D => D
+        # 1. Reflex clearance directly out: A -> H/A (< rule1_max) -> D.
+        # When the ball actually goes out, a reflex touch is not a possession
+        # change: the team already in possession keeps it until the dead
+        # boundary (GT convention). Otherwise drop the short opposite-team run
+        # to dead so a micro touch never becomes a possession.
         if (c_prev in (HOME, AWAY)) and (c_cur in (HOME, AWAY)) and (c_cur != c_prev) and (c_next == DEAD):
             if dur < rule1_max:
-                path[s_cur:e_cur] = DEAD
+                went_out = False
+                if out_arr is not None:
+                    a_out = offset + s_cur
+                    b_out = min(len(out_arr), offset + e_next + rule1_out_win)
+                    went_out = b_out > a_out and out_arr[a_out:b_out].mean() > rule1_out_frac
+                path[s_cur:e_cur] = c_prev if went_out else DEAD
 
         # 2. Deflection or placement between stoppages: D -> H/A (< rule2_max) -> D => D
         if (c_prev == DEAD) and (c_cur in (HOME, AWAY)) and (c_next == DEAD):
