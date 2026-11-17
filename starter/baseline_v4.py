@@ -326,14 +326,30 @@ def tag_arrays_v3(events, semantics, n_frames, p):
 # ---------------------------------------------------------------------------------------------
 # 4. Feature Pipeline
 # ---------------------------------------------------------------------------------------------
-def build_features_v4(game=GAME, p=DEFAULTS_V4):
+def build_features_v4(game=GAME, p=DEFAULTS_V4, raw=None, ball_mask=None):
+    """Build every feature the decoder needs.
+
+    `raw`, when given, is a dict with the already-parsed ``px, py, ps, bx, by, bz``
+    arrays, which makes repeated builds (parameter sweeps, robustness tests) cheap.
+    `ball_mask`, when given, is a boolean array over frames: False frames are treated
+    as "ball not observed", which is how the tracking-loss robustness test simulates
+    the 41% of graded frames where the provided tracking has no ball.
+    """
     meta_path, raw_path = require(["atd_meta", "atd_raw"], game)
     n_frames = source_frames("tactical", game)
     base_teams = team_of_each_track(meta_path)
     length, width = GAMES[game]["pitch"]
 
-    print(f"Reading ATD coordinates with 3D ball altitude for {n_frames} frames...")
-    px, py, ps, bx, by, bz = read_atd_v4(raw_path, n_frames, len(base_teams))
+    if raw is None:
+        print(f"Reading ATD coordinates with 3D ball altitude for {n_frames} frames...")
+        px, py, ps, bx, by, bz = read_atd_v4(raw_path, n_frames, len(base_teams))
+    else:
+        px, py, ps, bx, by, bz = (raw["px"], raw["py"], raw["ps"],
+                                  raw["bx"], raw["by"], raw["bz"])
+    if ball_mask is not None:
+        bx = np.where(ball_mask, bx, np.nan).astype(np.float32)
+        by = np.where(ball_mask, by, np.nan).astype(np.float32)
+        bz = np.where(ball_mask, bz, np.nan).astype(np.float32)
     seen = ~np.isnan(bx)
     out = seen & ((bx < -0.005) | (bx > 1.005) | (by < -0.005) | (by > 1.005))
     bx_i, by_i, interpolated = interpolate_short_gaps(bx, by, int(p["max_gap"]))
@@ -386,7 +402,7 @@ def build_features_v4(game=GAME, p=DEFAULTS_V4):
         pitch_length=length, pitch_width=width,
         third_bound=float(p.get("shield_third_bound", 0.25)),
         max_reach=float(p.get("shield_max_reach", 5.5)),
-        max_duel_dist=float(p.get("shield_max_duel", 3.5)),
+        max_duel=float(p.get("shield_max_duel", 3.5)),
         bridge_gap=int(p.get("shield_bridge_gap", 15)),
     )
 
