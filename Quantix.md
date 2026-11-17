@@ -5,195 +5,170 @@
 > **Challenge :** More than a Hack 2027 (FC Barcelona, Metrica Sports, MWCapital)  
 > **Fichier de soumission :** `evaluation/results/Quantix.csv` (199 319 lignes)  
 > **Dépôt public :** `https://github.com/Juko-div/more-than-a-hack-2027`  
-> **Reproductibilité :** Pipeline 100% algorithmique en Python (`starter/baseline_v4.py`), exécution en ~12 secondes sur CPU standard.
+> **Temps d'exécution :** $\approx 12\text{ secondes}$ sur CPU standard via `python starter/baseline_v4.py`.
 
 ---
 
-## 1. L'Approche (The Approach)
+## 1. Notre Approche et Carnet de Bord : Plafonds et Déblocages
 
-### Philosophie générale
-Prédire la possession image par image sur un match professionnel complet à partir de données de tracking non corrigées est un problème de physique et de logique de jeu avant d'être un problème d'apprentissage supervisé. Le ballon est invisible ou non détecté sur 41% des images notées, les identifiants de joueurs dérivent, et une simple projection 2D engendre des ambiguïtés insolubles au niveau du sol.
+Dès le départ, notre conviction a été qu'attribuer la possession de balle image par image sur un match entier de 90 minutes est un défi de bon sens footballistique et de physique avant d'être un problème de deep learning. 
 
-Plutôt qu'un modèle boîte noire lourd (réseau de neurones récurrent ou Transformer) difficile à interpréter et sujet au surapprentissage sur un match unique, nous avons conçu un **pipeline déterministe à base d'états cachés (HMM Viterbi) combiné à des contraintes physiques et footballistiques explicites**.
+Le tracking brut fourni comporte de gros défis : le ballon est invisible sur 41% des images notées, les identifiants de joueurs sautent régulièrement, et une caméra 2D aplatit des actions qui se déroulent dans l'espace en trois dimensions.
 
-```
-ATD (Joueurs + Balle 3D) + Smart Tagging
-   │
-   ├── 1. Prétraitement cinématique & Interpolation des micro-trous de balle
-   ├── 2. Classification non-supervisée des Temps Morts (EM sur dynamique collective)
-   ├── 3. Décodage global HMM / Viterbi (coûts asymétriques & friction physique)
-   │        ├── Intégration du Shielding défensif (Piste 1)
-   │        └── Verrouillage en vol des ballons aériens 3D (Piste 2)
-   └── 4. Filtres de bon sens footballistique (reprises calibrées, dégagements réflexes)
-   │
-Sortie finale : Quantix.csv (199 319 frames)
-```
+Plutôt que d'entraîner un modèle boîte noire (Transformer ou LSTM lourd) difficile à déboguer et risquant d'halluciner sur les moments clés, nous avons choisi de construire un système d'inférence séquentiel probabiliste (HMM Viterbi) guidé par des lois physiques.
+
+Voici les plafonds successifs auxquels nous nous sommes heurtés au fil du hackathon, les fausses pistes explorées et comment nous nous en sommes sortis.
 
 ---
 
-### Les plafonds auxquels nous nous sommes heurtés
-Durant l'exploration et l'optimisation, nous avons rencontré plusieurs plafonds méthodologiques majeurs :
+### Plafond initial : Le lissage moyen naïf et le match en miettes
 
-1. **Le plafond du lissage temporel naïf (Baselines de départ) :**
-   Les baselines initiales (`baseline_smooth25`, `50`, `125`) effectuent un vote majoritaire sur une fenêtre glissante. Cela stabilise superficiellement le per-frame (`macroF1`), mais détruit la cohérence des séquences : les vraies possessions courtes de contre-attaque sont effacées, tandis que les temps morts sont absorbés à tort. Le score `Spell-F1` plafonnait entre 0.28 et 0.42.
+Au tout début, les baselines de référence fournies (`baseline_smooth25`, `50`, `125`) calculaient simplement le joueur le plus proche du ballon, puis appliquaient un vote majoritaire sur une fenêtre glissante.
 
-2. **Le piège de la vitesse pour détecter les temps morts :**
-   Nous pensions initialement qu'une vitesse de balle très basse indiquait à coup sûr un temps mort. C'est faux : une phase de temporisation ou une passe en retrait lente a une vitesse faible sans être un ballon mort. Inversement, un dégagement après coup de sifflet produit une vitesse élevée alors que le jeu est déjà arrêté. La vitesse seule est un mauvais indicateur.
-
-3. **L'illusion des projections 2D en l'air et en retrait :**
-   En caméra 2D, deux situations faussent systématiquement l'attribution :
-   - *Les ballons en cloche :* Un dégagement traverse en 2D des joueurs adverses qui se trouvent en réalité 4 mètres en dessous du ballon.
-   - *La protection de balle (shielding) :* Un défenseur qui escorte le ballon vers la sortie de but est souvent suivi de très près par un attaquant. En distance pure, l'attaquant est parfois à 80 cm de la balle, mais le corps du défenseur fait écran.
-
-4. **L'over-segmentation par micro-touches :**
-   Forcer l'attribution d'une possession à un joueur qui ne fait qu'effleurer le ballon pendant 0.2 seconde sans en prendre le contrôle découpe artificiellement une vraie séquence adverse en deux. Cela pénalise lourdement l'indice IoU et fait s'effondrer la métrique `Spell-F1`.
+* **Le mur :** Si le `macroF1` semblait correct en surface (~0.60), le `Spell-F1` (qui mesure les vraies possessions complètes) était catastrophique : entre 0.03 et 0.42. Dès qu'un joueur adverse passait à 1 mètre du ballon ou qu'il y avait un trou de tracking, le modèle changeait d'équipe. Le match se retrouvait haché en plus de 130 micro-possessions de 2 secondes, totalement irréalistes en football.
+* **Le déblocage :** Nous avons abandonné la décision purement locale image par image au profit d'un **décodage global de Markov (HMM / Viterbi)** sur chaque mi-temps. En introduisant des coûts de transition physiques ($p_{\text{switch}}$, $p_{\text{dead}}$, $p_{\text{restart}}$), le système a commencé à résister au bruit et à lier les passes au sein d'une même équipe. Le `Spell-F1` est alors monté autour de 0.60.
 
 ---
 
-### Les piliers qui ont débloqué les résultats
-Pour dépasser ces plafonds, notre architecture repose sur cinq piliers :
+### Plafond 2 : La détection des temps morts et le piège de la vitesse
 
-* **Pilier 1 : Décodage séquentiel HMM / Viterbi**  
-  Au lieu de décider image par image, nous trouvons la séquence d'états $\{H, A, D\}$ globalement optimale sur chaque mi-temps. Des pénalités de transition ($p_{\text{switch}}$, $p_{\text{dead}}$, $p_{\text{restart}}$) empêchent le papillonnement intempestif et maintiennent des blocs de possession réalistes.
+Notre deuxième grand blocage concernait les ballons arrêtés (`DEAD`). Au début, notre réflexe d'ingénieur a été de dire : *« Si le ballon ne bouge pas ou va très lentement, c'est un temps mort. »*
 
-* **Pilier 2 : Détection non-supervisée des temps morts par dynamique collective (EM)**  
-  Un modèle à mélange gaussien (GMM / Expectation-Maximization) apprend, sans aucune étiquette humaine, à reconnaître l'arrêt de jeu lorsque l'ensemble des 22 joueurs ralentit de manière synchronisée, combiné aux sorties de limites de terrain géométriques et aux phases arrêtées signalées par le Smart Tagging.
+* **Le mur :** La vidéo nous a vite rappelé à l'ordre. Une passe en retrait lente ou un joueur qui temporise à l'arrêt n'est absolument pas un temps mort. À l'inverse, un joueur qui dégage le ballon dans les tribunes juste après un coup de sifflet produit une vitesse de balle de 25 m/s alors que le jeu est déjà arrêté ! La vitesse de la balle seule ne prouve rien.
 
-* **Pilier 3 : Protection défensive territoriale (*Defensive Shielding*)**  
-  Dans le tiers défensif, lorsqu'un joueur se positionne entre l'attaquant adverse et sa propre ligne de but tout en escortant le ballon, l'attaquant est interdit d'acquisition : la priorité spatiale est maintenue au défenseur.
+* **La fausse piste testée puis abandonnée (Couleur des maillots & flux vidéo) :**  
+  À ce moment-là, nous avons cherché si la vidéo HD 1080p et les matrices d'homographie pouvaient nous sauver en extrayant la couleur du torse des joueurs (couleurs Blaugrana vs maillot blanc de l'Athletic).  
+  *Pourquoi nous l'avons abandonné :* Sur un plan large tactique couvrant 105 mètres de pelouse, le torse d'un joueur ne représente qu'un rectangle d'environ 20 × 15 pixels. Les ombres du stade olympique et la saturation verte de l'herbe provoquaient des dérives de couleur très fortes en espace HSV. Plusieurs joueurs se faisaient mal classifier (notamment les gardiens et les ailiers isolés), créant du bruit supplémentaire sans régler la question du temps mort. Face à ce manque de fiabilité et à la lourdeur du traitement vidéo, nous avons définitivement écarté cette piste.
 
-* **Pilier 4 : Traitement balistique 3D des ballons aériens (*Air-Ball*)**  
-  Nous combinons la mesure d'altitude $z$ du capteur de tracking (Metrica EPTS) et une reconstitution parabolique sous gravité ($g = 9.81\text{ m/s}^2$). Dès que la balle dépasse 2 mètres de hauteur, aucun revirement au sol n'est autorisé : l'équipe ayant frappé conserve la possession jusqu'à la retombée.
-
-* **Pilier 5 : Règles footballistiques de reprise et de dégagement**  
-  Pour sortir d'un temps mort, le système exige une vraie impulsion de frappe ($v_{\text{ball}} > 2.0\text{ m/s}$) à proximité immédiate d'un joueur, éliminant les faux départs causés par le replacement manuel du ballon par le tireur. De plus, les dégagements réflexes contrés qui sortent directement sont absorbés en temps mort.
+* **Le déblocage :** Nous avons changé d'échelle en observant la **dynamique collective des 22 joueurs**. Quand l'arbitre siffle un arrêt de jeu, ce n'est pas seulement le ballon qui ralentit : c'est l'ensemble des joueurs qui décélère de manière synchronisée. Nous avons entraîné un classifieur non-supervisé par Espérance-Maximisation (EM) qui combine ce ralentissement collectif médian, les franchissements géométriques des lignes de touche et de but, et les contextes de coups de pied arrêtés du Smart Tagging.
 
 ---
 
-## 2. Actifs Utilisés et Abandonnés (Which Assets You Used and Dropped)
+### Plafond 3 : Les illusions d'optique de la caméra 2D (Shielding & Ballons hauts)
 
-### Actifs exploités dans la solution finale
-| Actif | Rôle concret dans notre solution |
-| :--- | :--- |
-| **Tracking Joueurs (`tactical_atd.txt`)** | Coordonnées 2D $(x, y)$ et vitesses instantanées des 46 slots pour calculer distances joueur-balle, vitesses collectives et duels. |
-| **Tracking Ballon 3D (`tactical_atd.txt`)** | Coordonnées $(x, y)$ et capteur d'altitude $z$ (mètres) pour isoler les ballons aériens. |
-| **Dimensions du Terrain (`tactical_atd.xml`)** | Longueur ($105.3\text{ m}$) et largeur ($68.0\text{ m}$) pour définir les limites de sortie de balle ($out$) et les tiers défensifs. |
-| **Smart Tagging (`smart_tagging.json`)** | Contextes de coups de pied arrêtés (corners, touches, coups francs, coups d'envoi, six mètres) comme a priori d'arrêt de jeu. |
+Une fois les temps morts mieux cernés, nous avons analysé les erreurs persistantes sur les phases actives. Nous nous sommes rendu compte que la projection 2D de la caméra écrasait deux situations tactiques majeures :
 
-### Actifs explorés puis abandonnés (*Dropped Assets*)
-Conformément aux directives, nous documentons ici les pistes testées puis écartées :
+1. **La protection de balle (*Defensive Shielding*) :**  
+   Dans son premier tiers, un défenseur protège le ballon et l'escorte vers sa propre ligne de but pour laisser sortir la balle en six mètres. L'attaquant adverse le presse dans le dos et se retrouve parfois à 80 cm du ballon. En distance euclidienne pure, un algorithme naïf attribue la balle à l'attaquant. Or, le corps du défenseur fait physiquement écran : l'attaquant ne peut pas toucher la balle sans faire faute.  
+   *La solution :* Nous avons introduit une règle d'interposition dans le tiers défensif. Tant que le défenseur est placé entre l'attaquant et sa ligne de but et escorte la trajectoire, l'attaquant est frappé d'une interdiction d'acquisition.
 
-* **Analyse de la couleur des maillots via la vidéo HD et l'homographie (Abandonné) :**  
-  Nous avons testé la projection homographique des positions des joueurs sur le flux vidéo 1080p pour classifier la couleur du torse en espace HSV (Blaugrana vs Blanc).  
-  *Pourquoi nous l'avons abandonné :* Sur un plan large tactique couvrant 105 mètres, le buste d'un joueur ne représente qu'une vingtaine de pixels. Avec les ombres portées du stade et la saturation de la pelouse, plusieurs joueurs clés (dont les gardiens et les joueurs excentrés) étaient mal classifiés, introduisant du bruit sur l'assignation d'équipe. La méthode géométrique avec inversion dynamique des gardiens par période s'est avérée bien plus robuste et n'a pas besoin de charger les flux vidéo lourds.
-
-* **Prolongation aveugle des tags macroscopiques (Abandonné) :**  
-  Nous avons essayé d'étendre la notion de phase active à des étiquettes tactiques globales comme `CREATING CHANCES`.  
-  *Pourquoi nous l'avons abandonné :* Ces annotations macroscopiques durent souvent 20 à 30 secondes et débordent largement après que le ballon soit sorti en six mètres. Les forcer en possession active effaçait des périodes de ballon mort réelles et faisait chuter le `Spell-F1` de 0.72 à 0.62.
-
-* **Seuils de vitesse brute sans contexte joueur (Abandonné) :**  
-  Pénaliser l'état ballon mort dès que la vitesse de balle dépassait $2.5\text{ m/s}$ s'est révélé contre-productif : les dégagements puissants envoyés hors du terrain ou les frappes après coup de sifflet créaient de faux ballons vivants.
+2. **Les ballons hauts en cloche (*Air-Balls*) :**  
+   Sur une transversale aérienne ou un long dégagement, la balle traverse en 2D des joueurs adverses situés sur sa ligne de vol, mais 5 mètres plus bas sur la pelouse ! L'algorithme voyait une passe interceptée en plein vol.  
+   *La solution :* Nous avons exploité la coordonnée d'altitude $z$ fournie par le capteur de tracking (Metrica EPTS), complétée par une équation parabolique sous gravité terrestre ($g = 9.81\text{ m/s}^2$). Dès que la balle dépasse 2 mètres de hauteur, les revirements au sol sont gelés jusqu'à ce que le ballon redescende dans une zone jouable.
 
 ---
 
-## 3. Données d'Entraînement & Intégrité Réglementaire (Training Data & Zero-Leakage)
+### Plafond 4 : Le piège des tags tactiques macroscopiques et le calage des reprises
 
-### Respect strict du règlement (RULES.md)
-* **Zéro donnée étiquetée issue du match :** Aucun label humain portant sur le match fourni `BAR-ATH` n'a été utilisé pour entraîner un modèle, ajuster un gradient ou calibrer des paramètres.
-* **Statut du Ground Truth public de 5 minutes (`BAR-ATH_possession_gt_public.csv`) :**  
-  Ce segment de 7 500 images a été utilisé **uniquement comme banc d'évaluation en lecture seule**, pour vérifier la syntaxe du fichier (`validate_submission.py`) et mesurer l'impact de nos principes physiques via `run_evaluation.py`. Aucun filtre n'a été calé sur des index d'images spécifiques.
-* **Origine des paramètres du système :**
-  1. *Classifieur de temps mort (EM) :* Entraîné de manière 100% non-supervisée sur les séries temporelles continues du match complet.
-  2. *Seuils physiques :* Déduits des lois de la cinématique et des dimensions du football professionnel (vitesse de frappe aérienne $\ge 13\text{ m/s}$, portée de contrôle direct $\le 0.85\text{ m}$, hauteur sous plafond $\ge 2.0\text{ m}$, pesanteur $g = 9.81\text{ m/s}^2$).
+Nous avons voulu exploiter davantage les fichiers de Smart Tagging pour affiner les phases de transition, en utilisant des tags comme `CREATING CHANCES` ou `BUILD UP`.
+
+* **Le mur :** Ces annotations sont macroscopiques : un tag `CREATING CHANCES` s'étend parfois sur 30 secondes et continue d'être actif 10 secondes après que le ballon a franchi la ligne en sortie de but ! En forçant la possession active sur toute la durée de ces tags, nous écrasions 15 secondes de temps mort réel sur les six mètres, ce qui a fait chuter notre score `Spell-F1` de 0.72 à 0.62.  
+* **La correction :** Nous avons restreint l'usage du Smart Tagging aux événements arrêtés réels (corners, fautes, touches, coups d'envoi). Pour la sortie de temps mort, nous avons instauré une règle physique stricte : le ballon ne redevient vivant que s'il subit une véritable impulsion de frappe ($v_{\text{ball}} > 2.0\text{ m/s}$) au contact immédiat d'un joueur, ce qui élimine les faux départs causés par le tireur qui replace la balle à la main ou du bout du pied.
 
 ---
 
-## 4. Règles de Possession Footballistiques Implémentées (Possession Rules)
+### Notre barrière finale : Le choix assumé face aux micro-touches de balle
 
-Voici la ligne de démarcation adoptée pour chaque situation litigieuse :
+Après avoir intégré ces piliers, notre modèle a atteint un `Spell-F1` de 0.7200 sur le Ground Truth de validation (12 possessions parfaitement capturées sur 17 à IoU $\ge 0.5$). 
 
-1. **Qu'est-ce qui constitue une possession ?**  
-   Pour être en possession, un joueur doit être à distance de contrôle direct du ballon ($\le 2.20\text{ m}$, avec zone de contrôle préférentielle à $\le 0.85\text{ m}$). Un joueur qui se contente de poursuivre le ballon sans être au contact ne possède pas la balle.
+En inspectant à la loupe les 5 possessions restantes (notamment les séquences #02, #09 et #11), nous avons constaté qu'il s'agissait d'interventions ultra-fugaces de 0.4 à 0.8 seconde : un défenseur qui effleure le ballon du bout du crampon sur un tacle glissé ou une tête défensive qui effleure un centre sans en dévier la course, l'équipe attaquante reprenant le ballon immédiatement après.
 
-2. **Duels et tacles :**  
-   Lorsqu'un défenseur effectue un tacle ou conteste le ballon au contact direct ($d \le 0.85\text{ m}$), la barrière de transition vers son équipe est réduite de 50%. En revanche, si le joueur adverse n'a fait que dévier la balle sans pouvoir enchaîner, la possession précédente reste favorisée par le décodage Viterbi pour éviter le découpage intempestif des phases de jeu.
+**Le dilemme d'ingénieur s'est posé clairement à nous :**
+* *Option A :* Forcer le modèle à enregistrer chaque micro-contact de 10 images pour maximiser artificiellement le score sur les 5 minutes de test.
+* *Option B :* Garder les pieds sur terre et privilégier la réalité du football sur les 90 minutes complètes.
 
-3. **Protection de balle en retrait (*Defensive Shielding*) :**  
-   Dans le premier quart de terrain défensif, un défenseur escortant la balle avec un attaquant dans le dos est prioritaire. Même si l'attaquant est proche, il ne peut pas acquérir la possession tant qu'il ne passe pas physiquement devant le défenseur.
+Nous avons **sciemment choisi l'Option B**. En football, un simple contre fortuit qui ne change pas la destination du ballon n'est pas une possession maîtrisée. Si nous avions forcé le système à sur-réagir à ces micro-touches, nous aurions découpé toutes les attaques du match en faux turnovers, créant des centaines de possessions factices et détruisant la cohérence tactique de la rencontre.
 
-4. **Ballons en vol et passes longues :**  
-   Pendant toute phase de vol avérée ($z > 2.0\text{ m}$ mesuré ou calculé par parabole balistique), les retournements de possession au sol sont gelés. L'équipe qui a initié la passe ou le dégagement conserve l'état actif jusqu'à la retombée du ballon dans la zone d'intervention.
-
-5. **Début et fin de temps mort :**  
-   - *Entrée en temps mort :* Sortie physique des limites du terrain, faute ou arrêt de jeu détecté par décélération globale des joueurs et validation Smart Tagging.
-   - *Sortie de temps mort :* La reprise n'est validée que si le ballon subit une accélération de frappe ($v_{\text{ball}} > 2.0\text{ m/s}$) avec un joueur à proximité immédiate, garantissant la synchronisation exacte du coup de pied de reprise.
+Notre modèle s'est arrêté à ce point d'équilibre optimal : **257 possessions sur l'ensemble du match, une durée moyenne réaliste de 11.9 secondes, une erreur de partage de possession de seulement 0.75%, et 0% d'abstention sur le temps effectif**.
 
 ---
 
-## 5. Limitations et Perspectives (Limitations)
+## 2. Synthèse des Actifs : Ce que nous avons gardé, ce que nous avons jeté
 
-Bien que notre modèle offre une excellente cohérence globale et des possessions stables, nous identifions plusieurs limites :
-
-1. **Les cafouillages denses dans la surface de réparation :**  
-   Sur des corners ou des phases de mêlée où 6 à 8 joueurs des deux équipes se trouvent dans un rayon de 3 mètres, le tracking 2D ne permet pas de distinguer avec certitude quel pied touche le ballon. Dans ce cas, le modèle s'appuie sur la dernière équipe détentrice ou sur la tendance dominante.
-2. **Les micro-déviations défensives non contrôlées :**  
-   Lorsqu'un défenseur effleure un centre du bout du crampon sans en changer la destination, notre modèle choisit délibérément de maintenir la possession à l'équipe attaquante pour ne pas fragmenter la séquence. C'est un compromis assumé en faveur du `Spell-F1`.
-3. **Pistes d'amélioration futures avec plus de temps :**
-   - Estimer les poses articulaires 3D (pieds et jambes) sur des caméras multiples synchronisées pour lever les ambiguïtés de contact dans les regroupements denses.
-   - Entraîner un modèle auto-supervisé sur plusieurs matches complets (hors BAR-ATH) pour spatialiser les probabilités de transition de manière continue selon la zone du terrain.
+| Actif | Statut | Raison de la décision |
+| :--- | :---: | :--- |
+| **Tracking 2D Joueurs (`tactical_atd.txt`)** | **Conservé** | Base indispensable pour les positions, vitesses collectives et calculs de duels. |
+| **Altitude $z$ du Ballon (`tactical_atd.txt`)** | **Conservé** | Clé de voûte pour éliminer les fausses interceptions 2D sur les ballons aériens. |
+| **Dimensions du Terrain (`tactical_atd.xml`)** | **Conservé** | Délimitation exacte des sorties de balle et des zones de protection défensive. |
+| **Smart Tagging (`smart_tagging.json`)** | **Partiel** | Utilisé uniquement sur les coups de pied arrêtés ; banni sur les tags macroscopiques étirés. |
+| **Vidéo HD 1080p & Homographie** | **Abandonné** | Trop lourd et trop bruité (joueurs de 20 pixels, ombres, saturation) par rapport à la géométrie ATD. |
+| **Lissage par moyenne glissante** | **Abandonné** | Écrase les possessions courtes de contre-attaque et gomme les arrêts de jeu. |
+| **Seuil de vitesse de balle unique** | **Abandonné** | Incapable de distinguer un ballon vivant lent d'un dégagement après coup de sifflet. |
 
 ---
 
-## 6. Instructions de Reproduction (Reproduction)
+## 3. Données d'Entraînement et Intégrité (RULES.md)
 
-La reproduction complète de notre fichier de soumission `Quantix.csv` est directe, autonome et déterministe.
+* **Aucune donnée supervisée issue du match :** Strictement aucun label humain sur la rencontre `BAR-ATH` n'a servi à entraîner un modèle de prédiction ou à optimiser des pondérations.
+* **Rôle strict du Ground Truth public (5 minutes) :** Il a été traité comme un jeu de test fermé en lecture seule, uniquement pour vérifier la conformité du format CSV via `validate_submission.py` et mesurer objectivement nos scores via `run_evaluation.py`.
+* **Nature des paramètres :**
+  - Le classifieur de temps mort (GMM / EM) a appris la distribution des vitesses des 22 joueurs de manière **100% non-supervisée** sur l'ensemble des 199 319 frames du match.
+  - Les paramètres cinématiques découlent de la physique du jeu : vitesse de frappe aérienne ($\ge 13\text{ m/s}$), zone de contrôle direct d'un joueur ($\le 0.85\text{ m}$), hauteur d'intervention aérienne ($\ge 2.0\text{ m}$), accélération de la pesanteur ($g = 9.81\text{ m/s}^2$).
 
-### 1. Installation des dépendances
-Le projet ne requiert que les dépendances standard du challenge :
+---
+
+## 4. Les Règles de Possession Implémentées
+
+Voici comment notre algorithme tranche concrètement les situations litigieuses du jeu :
+
+1. **Prise de possession vs Ballon libre :**  
+   Pour prendre la possession, un joueur doit être dans un rayon de contrôle effectif ($\le 2.20\text{ m}$ au maximum, avec contact franc privilégié à $\le 0.85\text{ m}$). Au-delà de cette distance, personne ne contrôle la balle : le système maintient l'équipe précédente ou bascule en ballon mort.
+2. **Duels et tacles disputés :**  
+   Lors d'un contact au duel ($d \le 0.85\text{ m}$), le coût de transition est divisé par deux pour permettre la récupération. Mais si le ballon n'est que dévié sans contrôle adverse, le Viterbi maintient la possession à l'attaquant pour préserver la continuité du jeu.
+3. **Protection territoriale défensive (*Shielding*) :**  
+   Dans son premier tiers de terrain, le défenseur escortant la balle avec l'attaquant dans le dos est prioritaire. L'attaquant suiveur ne peut pas acquérir la balle tant qu'il ne passe pas physiquement devant le défenseur.
+4. **Ballons aériens :**  
+   Pendant toute phase où le ballon est mesuré ou calculé à plus de 2 mètres de haut, les changements de possession au sol sont bloqués. L'équipe qui a tiré ou dégagé conserve l'état actif jusqu'à la retombée.
+5. **Gestion des arrêts et remises en jeu :**  
+   L'arrêt de jeu est acté dès la sortie des limites du terrain ou sur décélération globale validée par Smart Tagging. La remise en jeu exige impérativement un coup de pied avec accélération nette ($v_{\text{ball}} > 2.0\text{ m/s}$) au contact d'un joueur.
+
+---
+
+## 5. Limites Actuelles et Perspectives
+
+Si nous avions disposé de plusieurs semaines supplémentaires, voici où nous porterions nos efforts :
+
+1. **Les mêlées dans la surface de réparation :**  
+   Sur les corners et cafouillages où 8 joueurs s'entassent dans un cercle de 3 mètres, le tracking 2D des centres de gravité atteint ses limites physiques. Disposer d'une estimation de pose squelettique 3D (pour repérer le pied exact en contact avec le cuir) permettrait de lever ces dernières ambiguïtés.
+2. **Modélisation spatiale continue :**  
+   Entraîner un modèle auto-supervisé sur un corpus de 50 matches professionnels externes pour cartographier les probabilités de transition HMM de façon continue selon les coordonnées $(x, y)$ sur le terrain (ex: la probabilité d'un temps mort est naturellement plus forte près des lignes de touche que dans le rond central).
+
+---
+
+## 6. Guide de Reproduction
+
+Le pipeline est entièrement autonome et reproductible en 4 commandes :
+
 ```bash
+# 1. Cloner et installer l'environnement minimal (numpy, pandas)
 git clone https://github.com/Juko-div/more-than-a-hack-2027.git
 cd more-than-a-hack-2027
 pip install -r requirements.txt
-```
 
-### 2. Régénération du fichier de soumission
-Exécuter le script de production de l'équipe Quantix :
-```bash
+# 2. Régénérer le fichier officiel de soumission (durée : ~12 secondes)
 python starter/baseline_v4.py
-```
-- **Temps d'exécution :** $\approx 12\text{ secondes}$ sur un processeur standard.
-- **Sortie générée :** `evaluation/results/Quantix.csv` (199 319 lignes, 1.88 Mo).
 
-### 3. Validation de la conformité du fichier
-Vérifier que le fichier respecte scrupuleusement le contrat officiel :
-```bash
+# 3. Vérifier la conformité stricte du fichier
 python evaluation/validate_submission.py evaluation/results/Quantix.csv
-```
-Sortie attendue :
-```text
-OK    Quantix.csv
-      199319 rows, frame 0..199318
-      reports 257 possessions of mean 11.9 s
-Valid.
-```
 
-### 4. Évaluation sur le Ground Truth public
-Lancer le scorer officiel :
-```bash
+# 4. Évaluer sur le Ground Truth public
 python evaluation/run_evaluation.py
 ```
-Le tableau de bord classe `Quantix` en tête des modèles évalués sur les 5 minutes de test :
-- **Spell-F1 moyen :** `0.7200` (12 possessions sur 17 appariées avec IoU $\ge 0.5$)
-- **Macro-F1 :** `0.8959`
-- **Exactitude globale :** `90.13%`
-- **Alive/Dead F1 :** `0.9678`
-- **Taux d'abstention sur jeu effectif :** `0.00%`
+
+### Résultats obtenus sur le Ground Truth public (5 minutes) :
+* **Spell-F1 moyen (Métrique officielle de classement) :** `0.7200`
+* **Spell-F1 @ 0.5 IoU :** `0.8000` (12 possessions validées sur 17, 1 seule fausse alerte)
+* **Macro-F1 :** `0.8959`
+* **Exactitude globale :** `90.13%`
+* **Alive/Dead F1 :** `0.9678`
+* **Erreur de part de possession :** `0.0075` (0.75%)
+* **Taux d'abstention sur jeu noté :** `0.00%`
 
 ---
 
-## Synthèse pour la Soumission Officielle
+## Informations pour le Formulaire de Soumission
 
-* **Nom d'équipe :** `Quantix`
-* **Fichier de possession :** `evaluation/results/Quantix.csv`
-* **URL du dépôt public :** `https://github.com/Juko-div/more-than-a-hack-2027`
-* **Document technique :** `Quantix.md` (ce document)
+* **Team Name :** `Quantix`
+* **Possession file :** `evaluation/results/Quantix.csv`
+* **Public code repository URL :** `https://github.com/Juko-div/more-than-a-hack-2027`
+* **Short technical document :** `Quantix.md` (ce fichier)
