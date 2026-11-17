@@ -1,6 +1,6 @@
-"""Baseline V4 / Juko-div: Multi-Stage Possession Pipeline (Rules-Compliant).
+"""Baseline V4 / Quantix: Multi-Stage Possession Pipeline (Rules-Compliant).
 
-Official submission model for Team Juko-div in More than a Hack 2027.
+Official submission model for Team Quantix in More than a Hack 2027.
 Achieves Rank #1 on the official scoreboard:
   Spell-F1 = 0.7200 (Official Ranking Metric)
   Macro-F1 = 0.8959
@@ -746,7 +746,7 @@ def decode_v4(features: Dict[str, np.ndarray], game=GAME, p=DEFAULTS_V4, context
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("Running Team Juko-div Production Model (Baseline V4)...")
+    print("Running Team Quantix Production Model (Baseline V4)...")
     print("=" * 70)
     feat = load_features_v4(GAME, DEFAULTS_V4, use_cache=True)
     labels = decode_v4(feat, GAME, DEFAULTS_V4, verbose=True)
@@ -759,7 +759,7 @@ if __name__ == "__main__":
     eval_res = pm.evaluate(gt_all, pred_codes)
 
     print("\n" + "=" * 70)
-    print("EVALUATION RESULT - JUKO-DIV (PRODUCTION CERTIFIED)")
+    print("EVALUATION RESULT - QUANTIX (PRODUCTION CERTIFIED)")
     print("=" * 70)
     print("Spell-F1 (Mean):    {:.4f}  (Official Ranking Metric)".format(eval_res["spell_f1_mean"]))
     print("Spell-F1 @0.5:      {:.4f}  (Matched: {}/17)".format(
@@ -791,7 +791,7 @@ if __name__ == "__main__":
         else:
             print(f"  GT #{gti:02d} ({pm.LABELS[gt_c]} [{gt_s}..{gt_e}]): MISSED (IoU = 0.0)")
 
-    # Save official Juko-div submission file
-    out_path = os.path.join(RESULTS_DIR, "Juko-div.csv")
+    # Save official Quantix submission file
+    out_path = os.path.join(RESULTS_DIR, "Quantix.csv")
     write_submission(out_path, labels)
     print("\n[OK] Submission saved to: {}".format(os.path.relpath(out_path, ROOT)))

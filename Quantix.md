@@ -1,11 +1,11 @@
 # SUBMISSION REPORT — MORE THAN A HACK 2027
-## Système d'Inférence de Possession de Football par Balayage Étagé Multimodal (Juko-div / Baseline V4)
+## Système d'Inférence de Possession de Football par Balayage Étagé Multimodal (Quantix / Baseline V4)
 
 > **Compétition :** More than a Hack 2027 — FC Barcelona & Metrica Sports  
-> **Équipe :** `Juko-div`  
-> **Modèle Principal :** `Juko-div` (`starter/baseline_v4.py`)  
+> **Équipe :** `Quantix`  
+> **Modèle Principal :** `Quantix` (`starter/baseline_v4.py`)  
 > **Score Officiel Certifié (GT Public) :** `Spell-F1 = 0.7200` (Rang 1 Board), `Macro-F1 = 0.8959`, `Exactitude = 90.13%`, `Alive/Dead F1 = 0.9678`  
-> **Fichier de soumission :** [`evaluation/results/Juko-div.csv`](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/evaluation/results/Juko-div.csv)  
+> **Fichier de soumission :** [`evaluation/results/Quantix.csv`](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/evaluation/results/Quantix.csv)  
 > **Dépôt Public de Reproduction :** `https://github.com/Juko-div/more-than-a-hack-2027`  
 > **Dépôt Source :** `https://github.com/Juko-div/more-than-a-hack-2027-private.git`  
 > **Conformité Réglementaire :** 100% Conforme aux exigences strictes de [RULES.md](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/RULES.md) et [SUBMISSION.md](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/SUBMISSION.md) (zéro fuite, zéro règle calée sur des frames spécifiques, génération 100% algorithmique et déterministe).
@@ -160,7 +160,7 @@ Bien que Baseline V4 se positionne au 1er rang officiel (`Spell-F1 = 0.7200`), p
 
 ## 6. Instructions de Reproduction (Reproduction)
 
-La reproduction complète de notre fichier de soumission `Juko-div.csv` s'effectue de manière 100% déterministe via les étapes suivantes :
+La reproduction complète de notre fichier de soumission `Quantix.csv` s'effectue de manière 100% déterministe via les étapes suivantes :
 
 ### Étape 1 : Préparation de l'environnement
 Cloner le dépôt public et installer les dépendances légères :
@@ -177,16 +177,16 @@ Exécuter le pipeline officiel Baseline V4 :
 python starter/baseline_v4.py
 ```
 - **Durée d'exécution :** $\sim 12\text{ secondes}$.
-- **Sortie générée :** `evaluation/results/Juko-div.csv` (199 319 lignes, 1.88 Mo).
+- **Sortie générée :** `evaluation/results/Quantix.csv` (199 319 lignes, 1.88 Mo).
 
 ### Étape 3 : Validation officielle de la soumission
 Vérifier la validité structurelle du fichier selon le protocole officiel du hackathon :
 ```bash
-python evaluation/validate_submission.py evaluation/results/Juko-div.csv
+python evaluation/validate_submission.py evaluation/results/Quantix.csv
 ```
 - **Résultat attendu :**
   ```text
-  OK    Juko-div.csv
+  OK    Quantix.csv
         199319 rows, frame 0..199318
         label counts: H 47729 (23.9%), A 29036 (14.6%), D 82092 (41.2%), X 40462 (20.3%)
         reports 257 possessions of mean 11.9 s
@@ -209,7 +209,7 @@ python evaluation/run_evaluation.py
 
 ### Étape 5 : Vérification de conformité et intégrité
 Le code est 100% autonome et ne contient aucune dépendance superflue.
-La validation du format s'effectue via `python evaluation/validate_submission.py evaluation/results/Juko-div.csv`.
+La validation du format s'effectue via `python evaluation/validate_submission.py evaluation/results/Quantix.csv`.
 L'évaluation officielle et la génération du tableau de bord se font via `python evaluation/run_evaluation.py`.
 
 ---
@@ -218,7 +218,7 @@ L'évaluation officielle et la génération du tableau de bord se font via `pyth
 
 Le dossier de soumission prêt pour l'envoi via le formulaire Google Form officiel comprend :
 
-1. **Nom d'équipe :** `Juko-div`
-2. **Fichier de possession :** `evaluation/results/Juko-div.csv` (également duplicable sous `Juko-div.csv`)
+1. **Nom d'équipe :** `Quantix`
+2. **Fichier de possession :** `evaluation/results/Quantix.csv` (également duplicable sous `Quantix.csv`)
 3. **URL du dépôt public :** `https://github.com/Juko-div/more-than-a-hack-2027`
-4. **Document technique :** `Juko-div.md` (le présent document)
+4. **Document technique :** `Quantix.md` (le présent document)

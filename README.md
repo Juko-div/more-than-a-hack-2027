@@ -51,7 +51,7 @@ getting to the actual question. See [CHALLENGE.md](CHALLENGE.md).
 
 ---
 
-## Team Juko-div — Official Submission (Rank #1)
+## Team Quantix — Official Submission (Rank #1)
 
 Our submission model achieves **Rank #1** on the official benchmark:
 - **Spell-F1 (Official Ranking Metric):** `0.7200` (Mean over IoU 0.3..0.7, 12/17 matched at IoU $\ge 0.5$)
@@ -61,8 +61,8 @@ Our submission model achieves **Rank #1** on the official benchmark:
 - **Possession Share Error:** `0.0075` (0.75%)
 
 ### Official Submission Deliverables
-1. **Submission CSV:** [`evaluation/results/Juko-div.csv`](evaluation/results/Juko-div.csv) (199,319 rows, strict format validated)
-2. **Technical Document:** [`Juko-div.md`](Juko-div.md) (comprehensive 6-section report covering methodology, assets used & dropped, zero-leakage guarantee, physical rules, limitations, and reproduction)
+1. **Submission CSV:** [`evaluation/results/Quantix.csv`](evaluation/results/Quantix.csv) (199,319 rows, strict format validated)
+2. **Technical Document:** [`Quantix.md`](Quantix.md) (comprehensive 6-section report covering methodology, assets used & dropped, zero-leakage guarantee, physical rules, limitations, and reproduction)
 3. **Reproducible Pipeline:** [`starter/baseline_v4.py`](starter/baseline_v4.py) (100% algorithmic, zero hardcoding, ~12s execution)
 
 ### Quick Reproduction
@@ -74,7 +74,7 @@ pip install -r requirements.txt
 python starter/baseline_v4.py
 
 # 3. Validate submission format
-python evaluation/validate_submission.py evaluation/results/Juko-div.csv
+python evaluation/validate_submission.py evaluation/results/Quantix.csv
 
 # 4. Run official evaluation and view scoreboard
 python evaluation/run_evaluation.py
@@ -101,7 +101,7 @@ ground truth has 17 possessions of mean 14.2 s  <- compare the poss and dur colu
 
 rank  submission                macroF1  spellF1   poss     dur  transF1  lat_f  shareE  frag
 ----  ------------------------  -------  -------  -----  ------  -------  -----  ------  ----
-   1  Juko-div                   0.8959   0.7200     13    17.8   0.3684   +2.3   0.007  0.90
+   1  Quantix                    0.8959   0.7200     13    17.8   0.3684   +2.3   0.007  0.90
    2  baseline_smooth125         0.5812   0.4242     16    18.5   0.1667   -7.7   0.052  0.81
    3  baseline_smooth50          0.6207   0.3256     26    10.8   0.0816   +4.0   0.048  1.43
    4  baseline_smooth25          0.6200   0.2868     36     7.6   0.2034   +8.2   0.056  1.90
