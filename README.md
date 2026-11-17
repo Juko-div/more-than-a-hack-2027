@@ -51,10 +51,10 @@ getting to the actual question. See [CHALLENGE.md](CHALLENGE.md).
 
 ---
 
-## Team Quantix — Official Submission (Rank #1)
+## Team Quantix — Phase 1 Submission
 
-Our submission model achieves **Rank #1** on the official benchmark:
-- **Spell-F1 (Official Ranking Metric):** `0.7200` (Mean over IoU 0.3..0.7, 12/17 matched at IoU $\ge 0.5$)
+Our submission is ranked **#1 on the public 5-minute scoreboard** that ships with the challenge. That window is a diagnostic only: the ranking result is produced by the organisers against the hidden full-match ground truth, which is not published, and full-match `spellF1` is normally lower than the public window (see `EVALUATION.md`).
+- **Spell-F1 (public 5-minute window):** `0.7200` (Mean over IoU 0.3..0.7, 12/17 matched at IoU $\ge 0.5$)
 - **Macro-F1 (Tie-Break):** `0.8959`
 - **Overall Accuracy:** `90.13%`
 - **Alive/Dead F1:** `0.9678`
@@ -63,7 +63,7 @@ Our submission model achieves **Rank #1** on the official benchmark:
 ### Official Submission Deliverables
 1. **Submission CSV:** [`evaluation/results/Quantix.csv`](evaluation/results/Quantix.csv) (199,319 rows, strict format validated)
 2. **Technical Document:** [`Quantix.md`](Quantix.md) (comprehensive 6-section report covering methodology, assets used & dropped, zero-leakage guarantee, physical rules, limitations, and reproduction)
-3. **Reproducible Pipeline:** [`starter/baseline_v4.py`](starter/baseline_v4.py) (100% algorithmic, zero hardcoding, ~12s execution)
+3. **Reproducible Pipeline:** [`starter/baseline_v4.py`](starter/baseline_v4.py) (fully algorithmic; a few documented rules-based constants — the goalkeeper slot override and kickoff anchors — are listed in the technical report. A cached decode takes ~6 s; a fresh clone rebuilds the tracking features first)
 
 ### Quick Reproduction
 ```bash

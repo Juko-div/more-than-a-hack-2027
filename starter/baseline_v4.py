@@ -1,11 +1,13 @@
 """Baseline V4 / Quantix: Multi-Stage Possession Pipeline (Rules-Compliant).
 
-Official submission model for Team Quantix in More than a Hack 2027.
-Achieves Rank #1 on the official scoreboard:
-  Spell-F1 = 0.7200 (Official Ranking Metric)
+Submission model for Team Quantix in More than a Hack 2027.
+On the public 5-minute diagnostic scoreboard:
+  Spell-F1 = 0.7200
   Macro-F1 = 0.8959
   Accuracy = 90.13%
   Alive/Dead F1 = 0.9678
+The ranking result is produced against the hidden full-match ground truth,
+which is not published; the public window is a diagnostic, not the final score.
 
 Key Architecture Innovations:
 1. Dynamic goalkeeper slot tracking based on half-by-half spatial pitch zones.
@@ -15,12 +17,15 @@ Key Architecture Innovations:
    - Escorting ball in defensive third gives defending team spatial priority.
    - Attacker cannot acquire through defender's body; transition friction is discounted.
 5. Ballistic Air-Ball Altitude Modeling (Piste 2):
-   - High aerial balls (z > 2.0m) eliminate spurious 2D ground projection turnovers.
+   - High aerial balls (z > 2.0m) gate 2D ground-projection turnovers.
    - In-flight anti-dead protection: ball in flight inside pitch cannot transition to dead.
+   - Ablation on the public window shows no measurable score effect, so this is retained
+     as a structural guard rather than a scoring component.
 6. Calibrated set-piece restart detection with physical kick impulse threshold (2.0 m/s).
 7. Expectation-Maximization dead-ball classification, HMM Viterbi decoding,
    and tactical football domain refinement rules.
-8. 100% compliant with RULES.md (strictly algorithmically generated, zero frame hardcoding).
+8. Compliant with RULES.md: algorithmically generated, with a small number of documented
+   rules-based constants (goalkeeper slot override, kickoff anchors) rather than per-frame labels.
 """
 
 from __future__ import division, print_function
