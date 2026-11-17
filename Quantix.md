@@ -11,25 +11,29 @@
 
 ## 1. Démarche et Méthode par Balayage Étagé
 
-### Le point de départ : ce que nous avons reçu
+### 1.1 Le point de départ : ce que nous avons reçu
+
 Au lancement du challenge, nous disposions du jeu de données officiel fourni par l'organisation :
+
 * Un tracking automatique des 22 joueurs et de la balle (`tactical_atd.txt`) issu de caméras tactiques, sans aucune correction manuelle humaine.
 * Les flux vidéo tactique et broadcast en 1080p, ainsi que les matrices d'homographie associées.
 * Les événements tactiques automatiquement détectés (*Smart Tagging*).
-* Des scripts de référence (`baseline.py`) calculant le joueur le plus proche de la balle, complétés par des lissages fenêtrés (`smooth25`, `smooth50`, `smooth125`).
+* Des scripts de référence (`baseline.py`) calculant le joueur le plus proche de la balle, complétés par des lissages fenêtrés uniformes (`smooth25`, `smooth50`, `smooth125`).
 
-Ce point de départ imposait de résoudre des contraintes physiques sévères :
-1. **Un ballon invisible sur 41% du temps de jeu noté :** Le tracking perd fréquemment la balle lors des frappes, des sorties ou des mêlées.
-2. **Des sauts d'identifiants de joueurs :** Lors des regroupements, les numéros de slots peuvent s'inverser d'une image à l'autre.
-3. **L'écrasement 2D de la caméra :** La vue tactique aplatit le jeu dans un plan horizontal et ignore la hauteur réelle des trajectoires.
-4. **La fragmentation des baselines simples :** Une décision locale au plus proche découpait le match en plus de 130 micro-possessions hachées de 2 secondes, ou effaçait les vraies contre-attaques rapides.
+Ce point de départ imposait de résoudre des contraintes physiques et méthodologiques sévères :
+
+1. **Un ballon invisible sur 41% du temps de jeu noté :** Le capteur de tracking perd fréquemment la balle lors des frappes lointaines, des sorties en touche ou des regroupements denses.
+2. **Des sauts d'identifiants de joueurs :** Lors des mêlées ou des duels serrés, les numéros de slots des joueurs s'inversent régulièrement d'une image à l'autre.
+3. **L'écrasement 2D de la caméra :** La vue tactique aplatit le jeu dans un plan horizontal et ignore la hauteur réelle des trajectoires de balle.
+4. **La fragmentation des baselines simples :** Une décision locale au joueur le plus proche découpait le match en plus de 130 micro-possessions hachées de 2 secondes, ou écrasait à l'inverse les vraies contre-attaques rapides.
 
 ---
 
-### La méthode que nous avons adoptée : le balayage étagé (*Cascading Sieve*)
-Pour surmonter ces difficultés sans recourir à un modèle boîte noire (dont les hallucinations sont incontrôlables sur un match unique sans labels), nous avons mis au point une **méthode par balayage étagé**.
+### 1.2 La méthode que nous avons adoptée : le balayage étagé (*Cascading Sieve*)
 
-Le principe est le suivant : **au lieu de vouloir vérifier toutes les conditions en même temps sur chaque image, nous procédons par balayages successifs, du plus certain vers le plus incertain**. Chaque étape pose des certitudes physiques et affine l'état transmis à la suivante :
+Pour surmonter ces difficultés sans recourir à un modèle boîte noire (dont les hallucinations sont imprévisibles sur un match unique sans labels d'entraînement), nous avons conçu une **méthode par balayage étagé**.
+
+Le principe directeur est simple : **au lieu de vouloir vérifier toutes les conditions en même temps sur chaque image, nous procédons par balayages successifs, du plus certain vers le plus incertain**. Chaque étape pose des certitudes physiques incontestables et affine l'état transmis à l'étape suivante :
 
 ```
 Données brutes ATD (Joueurs + Balle 3D) & Smart Tagging
@@ -53,33 +57,44 @@ Fichier de sortie officiel : Quantix.csv (199 319 frames)
 
 ---
 
-### Ce qui s'est réellement passé : notre progression étape par étape
+### 1.3 Ce qui s'est réellement passé : notre progression étape par étape
 
-Tout au long du développement, notre travail a consisté à observer les comportements du modèle, à tester des hypothèses et à corriger les erreurs concrètes au fil de l'eau :
+Tout au long du projet, notre démarche a consisté à analyser en profondeur chaque comportement du modèle, à tester des hypothèses de terrain et à corriger les anomalies observées :
 
-* **Mettre fin au papillonnement par un modèle d'états :**  
-  Dans les baselines d'origine, le système hésitait et basculait d'une équipe à l'autre dès qu'un joueur adverse s'approchait du ballon. En posant un modèle de Markov caché (HMM) résolu par l'algorithme de Viterbi avec des pénalités de transition ($p_{\text{switch}}$, $p_{\text{dead}}$, $p_{\text{restart}}$), nous avons permis au système de résister au bruit et de lier les passes au sein d'une même équipe.
+#### Lier les séquences de jeu : l'abandon de la décision image par image
+Au départ, l'attribution locale au joueur le plus proche changeait d'équipe au moindre passage d'un adversaire à proximité de la balle. 
 
-* **La question du sifflet et le piège de la vitesse pour les temps morts :**  
-  Pour détecter les arrêts de jeu, nous nous sommes d'abord demandé si la bande son de la vidéo tactique pouvait nous indiquer précisément les coups de sifflet de l'arbitre. En inspectant la vidéo, on entend bien des coups de sifflet, mais l'ambiance sonore du stade (clameur du public, échos, intensité très variable) rendait un détecteur acoustique bien trop instable.  
-  Nous nous sommes alors tournés vers la vitesse du ballon, en pensant naïvement qu'une balle lente indiquait un arrêt de jeu. C'était une fausse piste : une passe en retrait lente ou une temporisation à l'arrêt est du jeu vivant, alors qu'un ballon dégagé après un coup de sifflet file à 25 m/s en plein temps mort. C'est ce constat qui nous a amenés à observer la décélération collective des 22 joueurs : quand l'arbitre siffle, l'ensemble des joueurs ralentit de façon synchronisée. Nous avons entraîné un classifieur non-supervisé (GMM par Espérance-Maximisation) sur cette dynamique collective médiane, couplée aux sorties physiques du terrain et aux contextes de coups de pied arrêtés du Smart Tagging.
+Pour résoudre ce papillonnement, nous avons basculé vers un décodage séquentiel global (HMM résolu par l'algorithme de Viterbi). En associant des coûts de transition physiques aux changements d'équipe ($p_{\text{switch}}$) et aux passages en temps mort ($p_{\text{dead}}$), le système a commencé à résister au bruit local et à lier les passes au sein d'une même équipe.
 
-* **La tentative d'arbitrage visuel par la couleur des maillots :**  
-  Face aux duels serrés où deux adversaires disputent le ballon à moins d'un mètre, nous avons essayé d'utiliser la vidéo HD 1080p et l'homographie pour extraire la couleur du torse des joueurs (Blaugrana vs Blanc) en espace HSV.  
-  Nous avons vite constaté que sur un plan large tactique couvrant 105 mètres de pelouse, le corps d'un joueur ne représente qu'un rectangle d'environ 20 pixels. Les ombres portées du stade et la saturation de la pelouse faussaient les couleurs, créant des erreurs sur les gardiens et les joueurs excentrés. Constatant que cela alourdissait énormément le temps de calcul sans apporter de gain fiable, nous avons totalement retiré ce module pour rester sur des signaux géométriques robustes.
+#### Le sifflet arbitre et le piège de la vitesse pour les temps morts
+Pour détecter les temps morts, nous avons d'abord exploré la piste sonore : l'arbitre siffle, donc le son de la vidéo pouvait théoriquement marquer l'arrêt de jeu. Mais en écoutant les flux, l'ambiance du stade (chants, réverbération, intensités imprévisibles) rendait un filtre acoustique trop instable et difficilement portable.
 
-* **Les ballons aériens et le shielding défensif :**  
-  L'analyse détaillée des séquences nous a montré deux erreurs récurrentes dues à la caméra 2D :
-  - *Les ballons en cloche :* Sur une transversale ou un long dégagement, la projection 2D de la balle survole des joueurs adverses qui semblent intercepter la balle en plein vol. En intégrant l'altitude $z$ du capteur et une modélisation parabolique sous gravité terrestre ($g = 9.81\text{ m/s}^2$), nous avons gelé les transitions au sol tant que le ballon est à plus de 2 mètres de haut.
-  - *La protection de balle (Shielding) :* Dans le tiers défensif, un défenseur escortant la balle vers sa propre ligne de but a souvent un attaquant collé à son dos. Bien que l'attaquant soit à moins d'un mètre en distance 2D, le corps du défenseur fait physiquement écran. Nous avons modélisé cette interposition pour bloquer l'acquisition de balle par l'attaquant tant qu'il ne passe pas physiquement devant le défenseur.
+Nous avons alors testé un seuil de vitesse sur le ballon, en pensant qu'un ballon lent ou arrêté caractérisait le temps mort. Ce fut une erreur flagrante : une passe en retrait lente ou une temporisation à l'arrêt est du jeu vivant, alors qu'un ballon dégagé dans les tribunes après un coup de sifflet file à 25 m/s en plein arrêt de jeu.
 
-* **Le piège des Smart Tags macroscopiques et le calage des reprises :**  
-  Nous avons essayé d'étendre la notion de possession active à des étiquettes tactiques globales comme `CREATING CHANCES`. Nous nous sommes aperçus que ces tags duraient parfois 30 secondes et couvraient encore la sortie du ballon en six mètres, effaçant 15 secondes de temps mort réel. Nous les avons donc bannis pour ne conserver que les vrais arrêts de jeu stricts. De même, pour éviter que le tireur qui replace la balle à la main ou du pied avant un coup franc ne déclenche une fausse reprise, nous avons calibré la sortie de temps mort sur une impulsion de frappe nette ($v_{\text{ball}} > 2.0\text{ m/s}$) au contact d'un joueur.
+La solution est venue d'un changement de perspective : lors d'un arrêt de jeu, ce n'est pas le ballon qui compte, c'est l'ensemble des 22 joueurs qui ralentit de manière synchronisée. Nous avons donc entraîné un modèle non-supervisé (GMM / EM) sur la médiane de la vitesse collective des joueurs, couplée aux sorties géométriques du terrain et aux arrêts du Smart Tagging.
 
-* **Notre arbitrage final face aux micro-touches :**  
-  En examinant les dernières possessions non capturées sur les 5 minutes de test (notamment les séquences #02, #09 et #11), nous avons constaté qu'il s'agissait de micro-touches de balle fugaces (0.4 à 0.8 seconde) où un joueur ne fait qu'effleurer le cuir sur un contre sans en prendre le contrôle.  
-  Nous aurions pu forcer l'algorithme à réagir à chaque effleurement pour faire grimper artificiellement le score sur ces 5 minutes. Mais nous avons délibérément refusé de le faire. En football réel, un ballon effleuré qui continue sa trajectoire n'est pas une prise de possession. Si nous avions forcé cette détection, nous aurions haché les 90 minutes complètes du match avec des dizaines de faux revirements, détruisant la cohérence tactique de la rencontre.  
-  Notre modèle s'est donc arrêté à ce compromis équilibré et réaliste : **257 possessions sur l'ensemble du match, une durée moyenne de 11.9 secondes, une erreur de partage de possession de 0.75%, et 0% d'abstention sur le temps de jeu noté**.
+#### L'impasse de la couleur des maillots en vidéo HD
+Face aux duels serrés où deux adversaires disputent le ballon à moins d'un mètre, nous avons implémenté un extracteur de couleur sur la vidéo 1080p via l'homographie, afin de départager les maillots (Blaugrana vs Blanc).
+
+Sur le terrain, cette idée s'est heurtée à la réalité de la caméra grand angle : sur un plan couvrant 105 mètres de pelouse, le buste d'un joueur ne mesure qu'une vingtaine de pixels. Les ombres du stade olympique et la saturation de la pelouse faussaient les teintes en HSV, générant des faux positifs sur les gardiens et les joueurs excentrés. Constatant que ce traitement alourdissait considérablement le temps d'exécution sans gain mesurable, nous avons nettoyé le code et supprimé ce module.
+
+#### Les deux pièges de la caméra 2D : ballons aériens et protection défensive
+L'analyse visuelle des erreurs nous a révélé deux anomalies systématiques induites par la projection 2D :
+
+1. **Les ballons en cloche :** Sur une transversale ou un long dégagement, la balle projetée au sol semblait traverser des adversaires qui « volaient » la possession en 2D, alors qu'elle passait 5 mètres au-dessus d'eux. Nous avons exploité la coordonnée d'altitude $z$ du capteur de tracking, complétée par une reconstitution parabolique sous gravité : au-dessus de 2 mètres, aucun changement de possession ne peut avoir lieu au sol.
+2. **Le shielding défensif :** Dans son tiers défensif, un défenseur escortant la balle vers sa propre ligne de but a souvent un attaquant collé au dos. En distance euclidienne pure, l'attaquant est à moins d'un mètre, mais le défenseur fait écran avec son corps. Nous avons modélisé cette interposition pour bloquer l'acquisition de balle par l'attaquant tant qu'il ne passe pas physiquement devant le défenseur.
+
+#### Le piège des Smart Tags macroscopiques et le calage des reprises
+Nous avons cherché à utiliser des étiquettes tactiques comme `CREATING CHANCES` pour aider les transitions. Nous avons vite constaté que ces tags s'étiraient sur 30 secondes et couvraient encore la sortie du ballon en six mètres, effaçant 15 secondes de temps mort réel et faisant chuter le `Spell-F1` de 0.72 à 0.62. Nous les avons donc bannis pour ne garder que les vrais arrêts de jeu stricts.
+
+Par ailleurs, pour éviter que le tireur qui replace la balle à la main ou du pied avant un coup franc ne déclenche une fausse reprise, nous avons calibré la sortie de temps mort sur une impulsion de frappe nette ($v_{\text{ball}} > 2.0\text{ m/s}$) au contact d'un joueur.
+
+#### Notre décision finale face aux micro-touches de balle
+En analysant les 5 dernières possessions non capturées sur le segment de 5 minutes (notamment les séquences #02, #09 et #11), nous avons constaté qu'il s'agissait de micro-touches de balle fugaces (0.4 à 0.8 seconde) où un joueur ne fait qu'effleurer le cuir sur un contre sans en prendre le contrôle.
+
+Nous aurions pu forcer des règles ad-hoc pour réagir à ces micro-contacts et maximiser artificiellement le score sur ce segment de test. Mais nous avons délibérément refusé de le faire. En football réel, un contre fortuit qui n'interrompt pas la course du ballon n'est pas une possession. Forcer l'attribution sur ces micro-touches aurait découpé toutes les attaques du match en faux turnovers, détruisant la cohérence tactique des 90 minutes.
+
+Notre modèle s'est arrêté à ce compromis équilibré : **257 possessions sur l'ensemble du match, une durée moyenne de 11.9 secondes, une erreur de partage de possession de 0.75%, et 0% d'abstention sur le temps de jeu noté**.
 
 ---
 
