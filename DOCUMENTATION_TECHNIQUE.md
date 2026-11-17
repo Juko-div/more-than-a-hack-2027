@@ -83,18 +83,18 @@ flowchart TD
 
 ---
 
-## 3. Analyse Expérimentale du Consensus Visuel & Re-Identification ([`starter/slot_jersey_consensus.py`](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/starter/slot_jersey_consensus.py))
+## 3. Analyse Expérimentale du Consensus Visuel & Re-Identification
 
-Dans le cadre de nos travaux de recherche, nous avons prototypé un module d'analyse visuelle de la couleur des maillots :
+Dans le cadre de nos travaux de recherche, nous avions initialement prototypé un module d'analyse visuelle de la couleur des maillots :
 1. **Méthode :** Échantillonnage de positions isolées ($d \ge 2.5\text{ m}$), projection homographique $(u, v) = \text{project}(H_t, x, y)$ sur la vidéo tactique HD, rognage du torse et histogramme de couleur HSV pour discriminer le Blaugrana du maillot blanc extérieur de l'Athletic.
 2. **Constat et Limites :**
    - Sur caméra grand-angle tactique à 1080p, la résolution d'un torse de joueur ne dépasse pas $20 \times 15$ pixels.
    - Les variations d'éclairage (ombres du stade de Montjuïc, reflets de la pelouse) induisent des dérives de teinte importantes.
-   - L'application brute du consensus HSV sans OCR des numéros de maillot produit des faux positifs (inversion erronée des slots 0, 4, 25, 38), ce qui dégrade les performances globales ($0.6978$ vs $0.7067$).
+   - L'application brute du consensus HSV sans OCR des numéros de maillot produit des faux positifs (inversion erronée des slots 0, 4, 25, 38), ce qui dégrade les performances globales ($0.6533$ vs $0.7200$).
    - De plus, pour le slot 44, le consensus visuel mesure 56.9% de blanc et classe le joueur comme AWAY (Athletic) avec 100% de confiance.
 3. **Décision d'Architecture & Éthique :**
    - Conformément à [RULES.md](file:///c:/Users/LENOVO/hackaton/more-than-a-hack-2027/RULES.md), **aucun hardcoding sur un intervalle d'images précis n'est toléré**. L'ancienne ligne `team_mat[11351:11467, 44] = HOME` a été **formellement supprimée**.
-   - Le module `slot_jersey_consensus.py` est maintenu comme outil d'exploration et de diagnostic, mais le pipeline de production repose uniquement sur des lois cinématiques et géométriques invariantes.
+   - Ce composant visuel instable a été définitivement **purgé du pipeline** afin de garantir une architecture 100% propre, sans dépendance superflue, reposant uniquement sur des lois cinématiques et géométriques invariantes.
 
 ---
 
@@ -150,7 +150,6 @@ more-than-a-hack-2027/
 │   ├── ballistic_airball.py                # Modèle d'altitude 3D & filtrage des ballons aériens (Piste 2)
 │   ├── baseline_v3.py                      # Pipeline étagé V3 (Indexation 0-indexed corrigée)
 │   ├── baseline_v2.py                      # Pipeline initial HMM / EM
-│   ├── slot_jersey_consensus.py            # Module expérimental Computer Vision (Re-ID maillots)
 │   ├── load_homography.py                  # Module de projection homographique 3x3
 │   ├── load_smart_tagging.py               # Parseur d'événements et phases de jeu
 │   └── games.py                            # Définitions géométriques du terrain et match
@@ -187,19 +186,13 @@ Pour régénérer et vérifier l'intégralité des résultats à partir d'un clo
 pip install -r requirements.txt
 ```
 
-### 2. Exécution du consensus visuel (Optionnel / Exploratoire) :
-```bash
-python starter/slot_jersey_consensus.py
-```
-*(Produit `data/.slot_jersey_consensus.json` et `data/.slot_jersey_consensus.npy`)*
-
-### 3. Génération de la soumission `baseline_v4.csv` :
+### 2. Génération de la soumission `baseline_v4.csv` :
 ```bash
 python starter/baseline_v4.py
 ```
 *(Durée : ~12 secondes. Produit `evaluation/results/baseline_v4.csv`)*
 
-### 4. Validation stricte du format officiel :
+### 3. Validation stricte du format officiel :
 ```bash
 python evaluation/validate_submission.py evaluation/results/baseline_v4.csv
 ```

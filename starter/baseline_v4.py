@@ -38,14 +38,12 @@ from starter.baseline_v3 import (
     DEFAULTS_V3, absorb_short_runs, refine_football_rules_v3, fit_dead_ball_classifier,
     team_evidence, tag_arrays_v3, learn_phase_semantics, KICKOFF_2ND_HALF
 )
-from starter.slot_jersey_consensus import build_slot_jersey_consensus
 from starter.defensive_shielding import detect_defensive_shielding
 from starter.ballistic_airball import detect_ballistic_air_balls
 from load_smart_tagging import load as load_events
 import possession_metrics as pm
 
 RESULTS_DIR = os.path.join(ROOT, "evaluation", "results")
-CONSENSUS_FILE = os.path.join(ROOT, "data", ".slot_jersey_consensus.npy")
 V4_CACHE_FILE = os.path.join(ROOT, "data", ".baseline_v4_features.npz")
 
 HOME, AWAY, DEAD, NOBODY = 0, 1, 2, 3
@@ -73,15 +71,6 @@ REQUIRED_V4_KEYS = {
     "d_home", "d_away", "interpolated", "out", "player_speed", "ball_speed",
     "shield_home", "shield_away", "air_ball_mask"
 }
-
-
-def load_consensus_array(game=GAME):
-    """Loads visual consensus cache if available, or generates it via slot_jersey_consensus."""
-    if os.path.exists(CONSENSUS_FILE):
-        return np.load(CONSENSUS_FILE)
-    print("Consensus cache not found. Running slot_jersey_consensus module...")
-    arr, _ = build_slot_jersey_consensus(game=game, verbose=True)
-    return arr
 
 
 def read_atd_v4(raw_path: str, n_frames: int, n_slots: int):
@@ -115,16 +104,12 @@ def read_atd_v4(raw_path: str, n_frames: int, n_slots: int):
     return px, py, ps, ball[:, 0], ball[:, 1], ball[:, 2]
 
 
-def build_features_v4(game=GAME, p=DEFAULTS_V4, use_visual_consensus=False):
+def build_features_v4(game=GAME, p=DEFAULTS_V4):
     meta_path, raw_path = require(["atd_meta", "atd_raw"], game)
     n_frames = source_frames("tactical", game)
     meta_teams = team_of_each_track(meta_path)
     length, width = GAMES[game]["pitch"]
-
-    if use_visual_consensus:
-        base_teams = load_consensus_array(game=game)
-    else:
-        base_teams = meta_teams
+    base_teams = meta_teams
 
     print(f"Reading ATD coordinates with 3D ball altitude for {n_frames} frames...")
     px, py, ps, bx, by, bz = read_atd_v4(raw_path, n_frames, len(meta_teams))
@@ -215,8 +200,8 @@ def build_features_v4(game=GAME, p=DEFAULTS_V4, use_visual_consensus=False):
     )
 
 
-def load_features_v4(game=GAME, p=DEFAULTS_V4, use_cache=True, use_visual_consensus=False):
-    cache_path = V4_CACHE_FILE if not use_visual_consensus else V4_CACHE_FILE.replace(".npz", "_consensus.npz")
+def load_features_v4(game=GAME, p=DEFAULTS_V4, use_cache=True):
+    cache_path = V4_CACHE_FILE
     if use_cache and os.path.exists(cache_path):
         try:
             cached = np.load(cache_path)
@@ -224,7 +209,7 @@ def load_features_v4(game=GAME, p=DEFAULTS_V4, use_cache=True, use_visual_consen
                 return {k: cached[k] for k in cached.files}
         except Exception:
             pass
-    feat = build_features_v4(game, p, use_visual_consensus=use_visual_consensus)
+    feat = build_features_v4(game, p)
     if use_cache:
         try:
             np.savez_compressed(cache_path, **feat)
